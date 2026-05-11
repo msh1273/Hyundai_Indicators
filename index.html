@@ -1,0 +1,282 @@
+Index · HTML
+복사
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>백화점 영향 외부지표 현황 · 현대백화점 v2.1</title>
+<link rel="stylesheet" href="./assets/styles.css">
+<script defer src="./assets/config.local.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script defer src="./assets/app.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+</head>
+<body>
+<div class="page">
+
+<!-- ═══════════════════════════════════════════
+     HTML § 1. 상단 바 (Top Bar)
+     ═══════════════════════════════════════════ -->
+<div class="top-bar">
+  <div class="logo-mark"><span>H</span></div>
+  <div><div class="top-bar-org">현대백화점 상품본부 지원팀</div><div class="top-bar-title">백화점 영향 외부지표 현황 <span class="badge-s" id="live-badge">ECOS / KOSIS 실시간 연동</span></div></div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     HTML § 1-1. Gemini API 키 입력 바
+     ═══════════════════════════════════════════ -->
+<div class="gemini-key-bar">
+  <div class="gk-label">Gemini API 키</div>
+  <input class="gemini-key-input" id="gemini-key-input" type="password"
+         placeholder="AIza... 형식의 Gemini API 키 입력"
+         autocomplete="off" spellcheck="false">
+  <button class="gemini-key-save" onclick="saveGeminiKey()">저장</button>
+  <span class="gemini-key-status gks-no" id="gemini-key-status">키 없음</span>
+  <a class="gemini-key-link" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">무료 키 발급 ↗</a>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     HTML § 2. 메인 레이아웃 (body-wrap)
+     ═══════════════════════════════════════════ -->
+<div class="body-wrap">
+
+
+<!-- ═══════════════════════════════════════════
+     HTML § 3. 사이드바 - 좌측 패널
+     ─────────────────────────────────────────────
+     § 3-1. 카테고리 버튼 그리드
+     § 3-2. 지표별 서브 버튼 패널 (grp1~grp6)
+     § 3-3. 차트 + KPI 수치
+     § 3-4. AI 추세 해석 박스
+     ═══════════════════════════════════════════ -->
+<div class="sidebar" x-data="dashboardShell()" x-init="init()">
+  <!-- § 3-1. 카테고리 버튼 그리드 -->
+  <div class="sidebar-hd">
+    <div class="sidebar-label">1 · 지표 추세</div>
+    <div class="cat-grid">
+      <button class="cat-col-btn" :class="{ open: activeGroup === 'grp1' }" @click="openGroup('grp1')"><span class="em">💬</span>소비심리</button>
+      <button class="cat-col-btn" :class="{ open: activeGroup === 'grp2' }" @click="openGroup('grp2')"><span class="em">💰</span>소득·고용</button>
+      <button class="cat-col-btn" :class="{ open: activeGroup === 'grp3' }" @click="openGroup('grp3')"><span class="em">📈</span>물가·금리</button>
+      <button class="cat-col-btn" :class="{ open: activeGroup === 'grp4' }" @click="openGroup('grp4')"><span class="em">🏠</span>자산시장</button>
+      <button class="cat-col-btn" :class="{ open: activeGroup === 'grp5' }" @click="openGroup('grp5')"><span class="em">🛍️</span>유통채널</button>
+      <button class="cat-col-btn" :class="{ open: activeGroup === 'grp6' }" @click="openGroup('grp6')"><span class="em">👶</span>인구동향</button>
+    </div>
+  </div>
+  <!-- § 3-2. 지표별 서브 버튼 패널 -->
+  <div class="sub-panel" id="grp1" x-cloak :class="{ open: activeGroup === 'grp1' }"><button class="sub-btn on" onclick="selChart('csi',this,'grp1')">소비자심리지수</button></div>
+  <div class="sub-panel" id="grp2" x-cloak :class="{ open: activeGroup === 'grp2' }"><button class="sub-btn" onclick="selChart('income',this,'grp2')">가계소득</button><button class="sub-btn" onclick="selChart('employ',this,'grp2')">고용률</button></div>
+  <div class="sub-panel" id="grp3" x-cloak :class="{ open: activeGroup === 'grp3' }"><button class="sub-btn" onclick="selChart('cpi',this,'grp3')">소비자물가</button><button class="sub-btn" onclick="selChart('rate',this,'grp3')">기준금리</button></div>
+  <div class="sub-panel" id="grp4" x-cloak :class="{ open: activeGroup === 'grp4' }"><button class="sub-btn" onclick="selChart('kospi',this,'grp4')">KOSPI</button><button class="sub-btn" onclick="selChart('houseprice',this,'grp4')">주택매매가격</button><button class="sub-btn" onclick="selChart('housetrade',this,'grp4')">주택거래량</button><button class="sub-btn" onclick="selChart('fx',this,'grp4')">환율</button></div>
+  <div class="sub-panel" id="grp5" x-cloak :class="{ open: activeGroup === 'grp5' }"><button class="sub-btn" onclick="selChart('dept',this,'grp5')">백화점매출(전년비)</button><button class="sub-btn" onclick="selChart('mart',this,'grp5')">대형마트매출</button><button class="sub-btn" onclick="selChart('convenience',this,'grp5')">편의점매출</button><button class="sub-btn" onclick="selChart('online',this,'grp5')">온라인쇼핑</button><button class="sub-btn" onclick="selChart('retail',this,'grp5')">소매판매지수</button><button class="sub-btn" onclick="selChart('service',this,'grp5')">서비스업생산</button><button class="sub-btn" onclick="selChart('tourist',this,'grp5')">방한외국인</button><button class="sub-btn" onclick="selChart('outbound',this,'grp5')">내국인출국</button></div>
+  <div class="sub-panel" id="grp6" x-cloak :class="{ open: activeGroup === 'grp6' }"><button class="sub-btn" onclick="selChart('birthrate',this,'grp6')">합계출산율(TFR)</button><button class="sub-btn" onclick="selChart('marriagerate',this,'grp6')">조혼인율</button></div>
+  <!-- § 3-3. 차트 + KPI 수치 -->
+  <div class="sidebar-chart">
+    <div class="chart-name" id="ctitle">소비자심리지수 (CCSI)</div>
+    <div class="index-note" id="index-note"></div>
+    <div class="chart-src" id="cmeta">출처: 한국은행 · 월별 발표 · 기준선 100</div>
+    <div class="kpi-grid">
+      <div class="kpill"><div class="kl">최신값</div><div class="kv" id="scur">100.3</div><div class="kc down" id="schg">▼ -1.2</div></div>
+      <div class="kpill"><div class="kl">6개월 평균</div><div class="kv" id="savg">101.8</div><div class="kc neu" id="snote">기준 100+</div></div>
+      <div class="kpill"><div class="kl">전년 대비</div><div class="kv" id="syoy">-3.1</div><div class="kc down" id="synote">점진 위축</div></div>
+    </div>
+    <div class="canvas-wrap"><canvas id="mc" role="img" aria-label="지표 추세 차트"></canvas></div>
+    <!-- § 3-4. AI 추세 해석 박스 -->
+    <div class="ai-box-s">
+      <div class="ai-lbl">AI 추세 해석</div>
+      <span id="ai-pulse" style="display:none"><span class="pulse"></span></span>
+      <div class="ai-txt" id="ai-interp" style="color:var(--text2)">버튼을 눌러 AI 해석을 불러오세요.</div>
+      <button class="ai-gen-btn" id="ai-gen-btn" onclick="genInterp()">AI 해석 생성 →</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- HTML § 4. 리사이저 (좌우 드래그 구분선) -->
+<div class="resizer" id="resizer"></div>
+
+
+<!-- ═══════════════════════════════════════════
+     HTML § 5. 우측 콘텐츠 패널
+     ═══════════════════════════════════════════ -->
+<div class="content">
+
+<div class="sec">
+  <!-- ─────────────────────────────────────────
+     HTML § 5-1. [섹션 2] 지표 교차 인사이트
+     ───────────────────────────────────────── -->
+<div class="sec-label">2 · 지표 교차 인사이트</div>
+  <!-- § 5-1a. AI 교차분석 (커스텀 선택) -->
+  <div class="custom-box">
+    <div class="custom-title">✏️ 지표를 직접 선택해서 AI 교차분석</div>
+    <div class="custom-subtitle">2~5개 선택 후 분석 버튼 클릭 → AI가 현대백화점 관점으로 실시간 분석 <span id="chk-counter" style="font-weight:600;color:#185FA5;margin-left:8px">0/5 선택됨</span></div>
+    <div class="ind-checks">
+      <input type="checkbox" class="ind-chk" id="ic_csi" value="소비자심리지수(100.3, 3개월 연속 하락)"><label class="ind-chk-label" for="ic_csi">소비자심리지수</label>
+      <input type="checkbox" class="ind-chk" id="ic_cpi" value="소비자물가(전년비 +3.1%)"><label class="ind-chk-label" for="ic_cpi">소비자물가</label>
+      <input type="checkbox" class="ind-chk" id="ic_rate" value="기준금리(3.25%, 인하 기조)"><label class="ind-chk-label" for="ic_rate">기준금리</label>
+      <input type="checkbox" class="ind-chk" id="ic_fx" value="원/달러 환율(1,382원, 원화 약세)"><label class="ind-chk-label" for="ic_fx">환율</label>
+      <input type="checkbox" class="ind-chk" id="ic_kospi" value="KOSPI(2,399p, 연중 저점)"><label class="ind-chk-label" for="ic_kospi">KOSPI</label>
+      <input type="checkbox" class="ind-chk" id="ic_nasdaq" value="나스닥(19,310p, AI주 조정)"><label class="ind-chk-label" for="ic_nasdaq">나스닥</label>
+      <input type="checkbox" class="ind-chk" id="ic_sp500" value="S&P500(5,882p, 사상 최고권)"><label class="ind-chk-label" for="ic_sp500">S&P500</label>
+      <input type="checkbox" class="ind-chk" id="ic_tourist" value="방한 외국인(월 108만명, +22%)"><label class="ind-chk-label" for="ic_tourist">관광객 수</label>
+      <input type="checkbox" class="ind-chk" id="ic_oil" value="유가 WTI($62, 하락세)"><label class="ind-chk-label" for="ic_oil">유가</label>
+      <input type="checkbox" class="ind-chk" id="ic_income" value="가계소득(월 507만원, 증가세)"><label class="ind-chk-label" for="ic_income">가계소득</label>
+      <input type="checkbox" class="ind-chk" id="ic_employ" value="고용률(63.0%, 소폭 하락)"><label class="ind-chk-label" for="ic_employ">고용률</label>
+      <input type="checkbox" class="ind-chk" id="ic_houseprice" value="주택매매가격지수(97.6, 소폭 반등)"><label class="ind-chk-label" for="ic_houseprice">주택가격</label>
+      <input type="checkbox" class="ind-chk" id="ic_retail" value="소매판매지수(전년비 +0.1%, 부진)"><label class="ind-chk-label" for="ic_retail">소매판매</label>
+    </div>
+    <button class="custom-run" id="custom-run-btn" onclick="runCustomInsight()">🔍 선택 지표 AI 교차분석 생성</button>
+    <div class="custom-result" id="custom-result">
+      <div class="cr-hd">AI 교차분석 결과 <span id="cir-pulse" style="display:none"><span class="pulse"></span></span></div>
+      <div class="cr-body" id="cir-body"></div>
+    </div>
+  </div>
+
+  <!-- § 5-1b. 인사이트 카드 1: 소비심리 × 물가 -->
+  <div class="ins-card">
+    <div class="ins-top">
+      <div class="ins-tags"><span class="tag t-blue">소비자심리지수</span><span class="tag t-amber">소비자물가지수</span><span style="font-size:9.5px;background:#FFF0F0;color:#C0392B;border:1px solid #F5C6C6;border-radius:4px;padding:1px 6px;font-weight:600;letter-spacing:.03em">SAMPLE</span></div>
+      <div class="ins-body"><span style="font-size:9.5px;background:#FFF0F0;color:#C0392B;font-weight:600;margin-right:4px">[샘플 해석]</span>소비자심리지수가 3개월 연속 하락하며 기준선(100)에 근접한 가운데, 물가는 전년 대비 상승세를 유지하고 있습니다. 실질 구매력 감소가 심화되며 소비자들의 가격 민감도가 높아지고 있으며, 특히 비필수·고가 품목에서 구매 결정 지연 현상이 나타날 가능성이 높습니다.</div>
+    </div>
+    <div class="ins-ref">
+      <div class="ins-ref-label">📰 근거 기사</div>
+      <div class="ins-ref-item"><a href="https://www.namdonews.com/news/articleView.html?idxno=909798" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">"990원 막걸리까지 등장"…유통가, 초저가 전쟁 '활활'</a> <span style="color:var(--text3)">· namdonews.com · 2026.05.07</span></div>
+      <div class="ins-ref-item"><a href="https://www.wikitree.co.kr/articles/1135212" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">두부 980원 막걸리 990원…2026년 유통가 강타한 초저가 바람</a> <span style="color:var(--text3)">· wikitree.co.kr · 2026.05.06</span></div>
+      <div class="ins-ref-item"><a href="https://www.edaily.co.kr/news/newspath.asp?newsid=03355446645446952" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">한섬, 2분기도 1분기에 이어 유사한 매출 성장…'매수'-NH</a> <span style="color:var(--text3)">· edaily.co.kr · 2026.05.08</span></div>
+    </div>
+    <div class="ins-divider"></div>
+    <div class="ins-block">
+      <div class="ins-block-label">영향 예상 상품군</div>
+      <div class="prod-chips"><span class="pchip hi">명품</span><span class="pchip hi">워치·주얼리</span><span class="pchip md">여성패션</span><span class="pchip md">가전·가구(리빙)</span><span class="pchip">뷰티</span><span class="pchip">식품</span></div>
+      <div class="chip-legend"><span><span class="dot" style="background:#E24B4A"></span>위험 높음</span><span><span class="dot" style="background:#BA7517"></span>부분 영향</span><span><span class="dot" style="background:#888"></span>제한적</span></div>
+    </div>
+    <div class="ins-divider"></div>
+    <div class="ins-block"><div class="ins-block-label">주요 대안</div><div class="alt-text">가성비 인식을 높이는 기획전(시즌 오프, 멤버십 특가) 강화. 명품·고가 카테고리는 한정판·희소성 마케팅으로 가격 저항 완화. 식품·뷰티는 소용량·트라이얼 구성으로 진입 장벽 낮추기.</div></div>
+  </div>
+
+  <!-- § 5-1c. 인사이트 카드 2: 환율 × 관광객 -->
+  <div class="ins-card">
+    <div class="ins-top">
+      <div class="ins-tags"><span class="tag t-red">환율 (USD/KRW)</span><span class="tag t-green">외국인 관광객</span><span style="font-size:9.5px;background:#FFF0F0;color:#C0392B;border:1px solid #F5C6C6;border-radius:4px;padding:1px 6px;font-weight:600;letter-spacing:.03em">SAMPLE</span></div>
+      <div class="ins-body"><span style="font-size:9.5px;background:#FFF0F0;color:#C0392B;font-weight:600;margin-right:4px">[샘플 해석]</span>원/달러 환율이 1,480원대로 상승하면서 방한 외국인의 원화 구매력이 실질적으로 증가하고 있습니다. 면세·뷰티·K-패션 수요 상승 여건이 형성되고 있으나, 내국인의 해외 출국 증가는 국내 소비의 외부 유출 리스크로 작용합니다.</div>
+    </div>
+    <div class="ins-ref">
+      <div class="ins-ref-label">📰 근거 기사</div>
+      <div class="ins-ref-item"><a href="https://www.dnews.co.kr/uhtml/view.jsp?idxno=202605071404112040860" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">[석유 최고가격제 한달] 30년만의 가격통제…'물가상승 방어' vs. '시장 왜곡'</a> <span style="color:var(--text3)">· dnews.co.kr · 2026.05.08</span></div>
+      <div class="ins-ref-item"><a href="https://www.seoulfn.com/news/articleView.html?idxno=627915" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">[주간환율전망] 중동 협상 교착에도 하방 압력 우위···1470원대 공방</a> <span style="color:var(--text3)">· seoulfn.com · 2026.05.04</span></div>
+      <div class="ins-ref-item"><a href="https://www.youthdaily.co.kr/news/article.html?no=218668" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">고유가 지원금에 배제 된 대형마트…유통업계 형평성 논란 '재점화'</a> <span style="color:var(--text3)">· youthdaily.co.kr · 2026.05.07</span></div>
+    </div>
+    <div class="ins-divider"></div>
+    <div class="ins-block">
+      <div class="ins-block-label">영향 예상 상품군</div>
+      <div class="prod-chips"><span class="pchip hi">뷰티</span><span class="pchip hi">명품</span><span class="pchip md">영패션</span><span class="pchip md">워치·주얼리</span><span class="pchip">식품</span><span class="pchip">팝업스토어</span></div>
+      <div class="chip-legend"><span><span class="dot" style="background:#E24B4A"></span>외국인 수요 수혜</span><span><span class="dot" style="background:#BA7517"></span>부분 수혜</span></div>
+    </div>
+    <div class="ins-divider"></div>
+    <div class="ins-block"><div class="ins-block-label">주요 대안</div><div class="alt-text">외국인 방문객 동선(교통 허브 근접 점포 중심)에 맞춘 면세 연계 프로모션 및 K-뷰티 팝업 강화. 귀국 후 재방문 유인(귀국 쿠폰, 포인트 적립) 프로그램 검토.</div></div>
+  </div>
+
+  <!-- § 5-1d. 인사이트 카드 3: 금리 × KOSPI × 소비심리 -->
+  <div class="ins-card">
+    <div class="ins-top">
+      <div class="ins-tags"><span class="tag t-blue">기준금리</span><span class="tag t-purple">KOSPI</span><span class="tag t-amber">소비자심리지수</span><span style="font-size:9.5px;background:#FFF0F0;color:#C0392B;border:1px solid #F5C6C6;border-radius:4px;padding:1px 6px;font-weight:600;letter-spacing:.03em">SAMPLE</span></div>
+      <div class="ins-body"><span style="font-size:9.5px;background:#FFF0F0;color:#C0392B;font-weight:600;margin-right:4px">[샘플 해석]</span>KOSPI가 7,000선을 돌파하며 자산 효과가 커지고 있으나, 주식 수익이 부동산으로 이동하는 경향이 관찰됩니다. 자산가·고소득 고객층 중심의 백화점 소비에는 긍정적이나, 소비 양극화 심화로 중산층 소비와의 간극이 확대될 수 있습니다.</div>
+    </div>
+    <div class="ins-ref">
+      <div class="ins-ref-label">📰 근거 기사</div>
+      <div class="ins-ref-item"><a href="https://www.hankyung.com/article/2026050723681" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">주식으로 번 돈 어디 갔나 했더니…40대 직장인 결국</a> <span style="color:var(--text3)">· hankyung.com · 2026.05.08</span></div>
+      <div class="ins-ref-item"><a href="https://www.kmib.co.kr/article/view.asp?arcid=1778141617&code=11151600&cp=nv" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">7000피 열렸지만… 수익·소비 양극화 심화</a> <span style="color:var(--text3)">· kmib.co.kr · 2026.05.08</span></div>
+      <div class="ins-ref-item"><a href="http://www.updownnews.co.kr/news/articleView.html?idxno=317125" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">소비보다 부동산 우선...증시 활황에도 '주식 자산효과' 약화 왜?</a> <span style="color:var(--text3)">· updownnews.co.kr · 2026.05.07</span></div>
+    </div>
+    <div class="ins-divider"></div>
+    <div class="ins-block">
+      <div class="ins-block-label">영향 예상 상품군</div>
+      <div class="prod-chips"><span class="pchip hi">명품</span><span class="pchip hi">워치·주얼리</span><span class="pchip hi">가전·가구(리빙)</span><span class="pchip md">남성패션</span><span class="pchip md">여성패션</span><span class="pchip">유아동</span></div>
+      <div class="chip-legend"><span><span class="dot" style="background:#E24B4A"></span>위험 높음</span><span><span class="dot" style="background:#BA7517"></span>부분 영향</span></div>
+    </div>
+    <div class="ins-divider"></div>
+    <div class="ins-block"><div class="ins-block-label">주요 대안</div><div class="alt-text">주가 회복 전까지 Mid-luxury 라인업 확충으로 고객 이탈 방지. 리빙·가구 카테고리 기획전 시점 검토. VIP 고객 대상 자산관리·라이프스타일 연계 멤버십 강화.</div></div>
+  </div>
+</div>
+
+<div class="sec">
+  <!-- ─────────────────────────────────────────
+     HTML § 5-2. [섹션 3] 최근 기사 요약
+     · 기사 추가/수정: data-cat 속성으로 카테고리 분류
+       (store / rival / consume / fx / rate)
+     ───────────────────────────────────────── -->
+<div class="sec-label">3 · 최근 기사 요약</div>
+  <div style="margin-bottom:.6rem"><button id="news-ai-btn" class="custom-run" onclick="fetchNewsAI()">🔍 AI로 최신 기사 검색</button></div>
+  <div class="news-kw-row">
+    <button class="kwbtn on" onclick="fnews('all',this)">전체</button>
+    <button class="kwbtn" onclick="fnews('store',this)">백화점·유통</button>
+    <button class="kwbtn" onclick="fnews('rival',this)">경쟁사 동향</button>
+    <button class="kwbtn" onclick="fnews('consume',this)">소비 트렌드</button>
+    <button class="kwbtn" onclick="fnews('fx',this)">환율·관광</button>
+    <button class="kwbtn" onclick="fnews('rate',this)">금리·경기</button>
+  </div>
+  <div class="news-wrap" id="nwrap">
+    <div style="padding:1.2rem;text-align:center;font-size:12px;color:var(--text3)">불러오는 중…</div>
+  </div>
+</div>
+
+<div class="sec">
+  <!-- ─────────────────────────────────────────
+     HTML § 5-3. [섹션 4] 연구기관 보고서
+     · HRI (현대경제연구원) / SERI (삼성경제연구소)
+     · 수동 보고서 추가: rpt-hri-list / rpt-seri-list
+     ───────────────────────────────────────── -->
+<div class="sec-label">4 · 연구기관 보고서 <span id="rpt-updated" style="font-size:9px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;margin-left:6px"></span></div>
+  <div class="rpt-org" id="rpt-hri">
+    <div class="rpt-org-header">
+      <div><div class="rpt-org-name">현대경제연구원 <span class="rpt-org-url">hri.co.kr</span></div><div class="rpt-org-desc">매주 경제 동향·이슈 보고서 발간 · 소비·유통·경기 분석 중심</div></div>
+      <div class="rpt-org-actions"><a href="https://www.hri.co.kr/research/list.aspx" target="_blank" class="rpt-link-btn">홈페이지 ↗</a></div>
+    </div>
+    <div class="rpt-manual-label">최신 관련 뉴스 <span style="font-weight:400;color:var(--text3)">(reports.json · 자동갱신)</span></div>
+    <div class="rpt-list" id="rpt-hri-list"><div class="rpt-empty">불러오는 중…</div></div>
+  </div>
+  <!-- SERI -->
+  <div class="rpt-org" id="rpt-seri">
+    <div class="rpt-org-header">
+      <div><div class="rpt-org-name">삼성경제연구소 <span class="rpt-org-url">seri.org</span></div><div class="rpt-org-desc">거시경제·산업·소비 트렌드 심층 보고서 · 월간 발간</div></div>
+      <div class="rpt-org-actions"><a href="https://www.seri.org/db/dbReptV.html" target="_blank" class="rpt-link-btn">홈페이지 ↗</a></div>
+    </div>
+    <div class="rpt-manual-label">최신 관련 뉴스 <span style="font-weight:400;color:var(--text3)">(reports.json · 자동갱신)</span></div>
+    <div class="rpt-list" id="rpt-seri-list"><div class="rpt-empty">불러오는 중…</div></div>
+  </div>
+
+  <!-- KDI -->
+  <div class="rpt-org" id="rpt-kdi">
+    <div class="rpt-org-header">
+      <div><div class="rpt-org-name">한국개발연구원 <span class="rpt-org-url">kdi.re.kr</span></div><div class="rpt-org-desc">국책 싱크탱크 · 재정·복지·노동·성장 정책 분석 중심</div></div>
+      <div class="rpt-org-actions"><a href="https://www.kdi.re.kr/research/reportList.jsp" target="_blank" class="rpt-link-btn">홈페이지 ↗</a></div>
+    </div>
+    <div class="rpt-manual-label">최신 관련 뉴스 <span style="font-weight:400;color:var(--text3)">(reports.json · 자동갱신)</span></div>
+    <div class="rpt-list" id="rpt-kdi-list"><div class="rpt-empty">불러오는 중…</div></div>
+  </div>
+
+  <!-- BOK -->
+  <div class="rpt-org" id="rpt-bok">
+    <div class="rpt-org-header">
+      <div><div class="rpt-org-name">한국은행 <span class="rpt-org-url">bok.or.kr</span></div><div class="rpt-org-desc">통화·금리·경상수지·물가 분석 · 금융안정보고서·통화신용정책보고서 발간</div></div>
+      <div class="rpt-org-actions"><a href="https://www.bok.or.kr/portal/bbs/P0000559/list.do?menuNo=200760" target="_blank" class="rpt-link-btn">홈페이지 ↗</a></div>
+    </div>
+    <div class="rpt-manual-label">최신 관련 뉴스 <span style="font-weight:400;color:var(--text3)">(reports.json · 자동갱신)</span></div>
+    <div class="rpt-list" id="rpt-bok-list"><div class="rpt-empty">불러오는 중…</div></div>
+  </div>
+</div>
+
+<footer>현대백화점 상품본부 지원팀 내부용 · Made with Claude · 2026</footer>
+  <div style="background:linear-gradient(135deg,#0C3D6E 0%,#185FA5 100%);border-radius:var(--radius-lg);padding:1.1rem 1.35rem;margin-bottom:.85rem">
+    <div style="font-size:10px;color:#9ABFE0;font-weight:500;margin-bottom:.3rem;letter-spacing:.06em">현대백화점 상품본부 지원팀 · MONTHLY BRIEFING</div>
+    <div style="font-size:17px;font-weight:600;color:#fff;margin-bottom:.3rem">외부환경 월간 브리핑</div>
+    <div style="font-size:11.5px;color:#BDD5F0">2026년 1분기 · 참조: 현대경제연구원 경제주평 제1005호</div>
+  </div>
+  <div style="background:#E6F1FB;border-left:3px solid #185FA5;border-radius:0 var(--radius) var(--radius) 0;padding:.85rem 1.05rem;margin-bottom:.85rem;font-size:12px;color:var(--text);line-height:1.72">
+    <strong style="color:#185FA5;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;display:block;margin-bottom:.35rem">EXECUTIVE SUMMARY</strong>
+    2026년 1분기 한국 경제는 <strong>수출 호조(+29~34%)에도 내수 회복이 지연</strong>되는 K-양극화 구조가 지속되고 있습니다. 현대경제연구원은 ① 트럼프 통상 2라운드 ② 오일쇼크발 인플레이션 ③ FED 통화정책 불확실성 ④ 반도체 사이클 지속 여부 ⑤ 건설투자 장기 침체를 5대 경기 리스크로 제시했습니다.
+  </div>
+</body>
+</html>
+ 

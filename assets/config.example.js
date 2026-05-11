@@ -1,0 +1,5 @@
+window.__HYUNDAI_INDICATORS_CONFIG__ = {
+  ECOS_KEY: '',
+  KOSIS_KEY: '',
+  ANTHROPIC_KEY: ''
+};
