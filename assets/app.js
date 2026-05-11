@@ -1,6 +1,7 @@
-/* ?????????????????????????????????????????????????????????????????   JS ? 1. ??? ??? & ??? ????   ? mc: ??? Chart ??????
-   ? curKey: ??? ???????????   ? ECOS_KEY / KOSIS_KEY / ANTHROPIC_KEY: ??????????? UI??? ???/???
-   ?????????????????????????????????????????????????????????????????*/
+/* JS 1. 전역 변수 & 상태
+   - mc: 현재 Chart 인스턴스
+   - curKey: 현재 선택된 지표
+   - ECOS_KEY / KOSIS_KEY / GEMINI_KEY: API 키 */
 function getAppConfig() {
   return window.__HYUNDAI_INDICATORS_CONFIG__ || {};
 }
@@ -17,7 +18,7 @@ function getConfigValue(key, storageKey) {
 }
 var ECOS_KEY    = getConfigValue('ECOS_KEY', 'ecos_api_key');
 var KOSIS_KEY   = getConfigValue('KOSIS_KEY', 'kosis_api_key');
-var ANTHROPIC_KEY = getConfigValue('ANTHROPIC_KEY', 'anthropic_api_key');
+var GEMINI_KEY = getConfigValue('gemini_api_key', 'gemini_api_key');
 var ECOS_BASE_M = 'https://ecos.bok.or.kr/api/StatisticSearch/' + ECOS_KEY + '/json/kr/1/14/';
 var ECOS_BASE_D = 'https://ecos.bok.or.kr/api/StatisticSearch/' + ECOS_KEY + '/json/kr/1/400/';
 var KOSIS_BASE  = 'https://kosis.kr/openapi/Param/statisticsParameterData.do?method=getList&format=json&jsonVD=Y&outputFields=ITM_ID+PRD_DE+DT&prdInterval=1&apiKey=';
@@ -29,7 +30,7 @@ function saveGeminiKey() {
   var value = (input.value || '').trim();
   var persisted = false;
   if (value) {
-    ANTHROPIC_KEY = value;
+    GEMINI_KEY = value;
     input.value = value;
     try {
       localStorage.setItem('gemini_api_key', value);
@@ -38,7 +39,7 @@ function saveGeminiKey() {
       persisted = false;
     }
   } else {
-    ANTHROPIC_KEY = '';
+    GEMINI_KEY = '';
     try {
       localStorage.removeItem('gemini_api_key');
       persisted = true;
@@ -53,7 +54,7 @@ function updateKeyStatus(persisted) {
   var statusEl = document.getElementById('gemini-key-status');
   var input = document.getElementById('gemini-key-input');
   if (!statusEl || !input) return;
-  if (ANTHROPIC_KEY) {
+  if (GEMINI_KEY) {
     statusEl.textContent = persisted === false ? '임시 저장됨' : '저장됨';
     statusEl.className = 'gemini-key-status gks-ok';
     input.placeholder = '저장된 키가 있습니다';
@@ -1041,17 +1042,20 @@ async function selChartWithAPI(key, btn, grpId) {
 async function genInterp() {
   var d = CD[curKey]; if(!d || !d.prompt) return;
 
-  // 최신값 컨텍스트 구성
   var latestVal = (d.data && d.data.length) ? d.data[d.data.length-1] : null;
   var latestStr = latestVal !== null
     ? ((curKey==='income') ? fmtIncome(latestVal) : latestVal + (d.unit||''))
     : '';
   var dataCtx = latestStr
-    ? ('\n[참고 수치] 지표명: '+d.title+' / 최신값: '+latestStr+' / 현황: '+d.yn)
+    ? ('\n[참고 수치] 지표명: ' + d.title + ' / 최신값: ' + latestStr + ' / 요약: ' + d.yn)
     : '';
 
   var fullPrompt = d.prompt + dataCtx
-    + '\n이 지표와 관련된 최근 국내 뉴스나 경제 흐름을 반영하여 현대백화점 상품본부 관점의 핵심 시사점을 마지막에 한 문장으로 추가해주세요.';
+    + '\n이 지표와 관련된 최근 국내외 경제 뉴스와 경제 지표 흐름을 반영하여, 현대자동차 그룹이 이해하기 쉬운 톤으로 3~5문장으로 해석해 주세요. 마지막에는 현대자동차의 제품·판매·수출·원가와의 연결점을 한 문장으로 덧붙여 주세요.';
+
+  console.groupCollapsed('[AI 해석 프롬프트] ' + d.title);
+  console.log(fullPrompt);
+  console.groupEnd();
 
   var interp  = document.getElementById('ai-interp');
   var pulse   = document.getElementById('ai-pulse');
@@ -1062,31 +1066,34 @@ async function genInterp() {
   genBtn.style.display = 'none';
 
   try {
-    var res = await fetch('https://api.anthropic.com/v1/messages', {
+    if(!GEMINI_KEY) throw new Error('Missing Gemini API key');
+    var res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=' + encodeURIComponent(GEMINI_KEY), {
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:600,
-        tools:[{"type":"web_search_20250305","name":"web_search"}],
-        messages:[{role:'user', content:fullPrompt}]
+        contents:[{role:'user', parts:[{text:fullPrompt}]}],
+        generationConfig:{maxOutputTokens:600, temperature:0.4}
       })
     });
-    var data = await res.json();
-    var txt = (data.content||[]).map(function(c){ return c.text||''; }).join('').trim();
-    interp.textContent = txt || '해석을 가져오지 못했습니다.';
+    var rawBody = await res.text();
+    if(!res.ok) {
+      console.error('[AI 해석] Gemini error status:', res.status, res.statusText);
+      console.error('[AI 해석] Gemini error body:', rawBody);
+      throw new Error('Gemini request failed: ' + res.status);
+    }
+    var data = rawBody ? JSON.parse(rawBody) : {};
+    var cand = (data.candidates||[])[0] || {};
+    var parts = (cand.content && cand.content.parts) || [];
+    var txt = parts.map(function(p){ return p.text || ''; }).join('').trim();
+    interp.textContent = txt || 'AI 해석을 가져오지 못했습니다.';
   } catch(e) {
-    interp.textContent = '네트워크 오류로 해석을 가져오지 못했습니다.';
+    console.error('[AI 해석] genInterp failed:', e);
+    interp.textContent = '네트워크 또는 API 오류로 AI 해석을 가져오지 못했습니다.';
   }
   pulse.style.display = 'none';
   genBtn.style.display = 'inline-block';
 }
 
-/* ═══════════════════════════════════════════
-   JS § 18. AI 교차분석
-   · onCheckChange: 최대 3개 체크 제한
-   · runCustomInsight: 선택 지표 AI 교차분석
-   ═══════════════════════════════════════════ */
 function onCheckChange(chk) {
   var checked = document.querySelectorAll('.ind-chk:checked');
   var counter = document.getElementById('chk-counter');
@@ -1110,7 +1117,7 @@ async function runCustomInsight() {
   try {
     var res = await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      headers:{'Content-Type':'application/json','x-api-key':GEMINI_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:600,messages:[{role:'user',content:prompt}]})
     });
     var data = await res.json();
@@ -1156,7 +1163,7 @@ async function fetchNewsAI() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_KEY,
+          'x-api-key': GEMINI_KEY,
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true'
         },
@@ -1453,8 +1460,8 @@ window.dashboardShell = dashboardShell;
 
 window.addEventListener('load', function() {
   var input = document.getElementById('gemini-key-input');
-  if (input && ANTHROPIC_KEY) {
-    input.value = ANTHROPIC_KEY;
+  if (input && GEMINI_KEY) {
+    input.value = GEMINI_KEY;
   }
   updateKeyStatus();
 });
