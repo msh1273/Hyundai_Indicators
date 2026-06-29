@@ -114,8 +114,26 @@
     <button class="wx-nav-btn" id="wx-next" onclick="wxMove(1)">&#8250;</button>
   </div>
   <div class="wx-summary" id="wx-summary">
-    <div class="wx-sum-card"><div class="wx-sum-lbl">월평균기온</div><div class="wx-sum-val" id="wx-s-temp">—</div><div class="wx-sum-diff" id="wx-s-tdiff"></div></div>
-    <div class="wx-sum-card"><div class="wx-sum-lbl">일평균강수량</div><div class="wx-sum-val" id="wx-s-rain">—</div><div class="wx-sum-diff" id="wx-s-rdiff"></div></div>
+    <div class="wx-sum-row wx-sum-header">
+      <div class="wx-sum-cell wx-sum-rowlbl"></div>
+      <div class="wx-sum-cell wx-sum-collbl">🌡 기온<span class="wx-sum-unit">월평균 · °C</span></div>
+      <div class="wx-sum-cell wx-sum-collbl">🌧 강수<span class="wx-sum-unit">일평균 · mm</span></div>
+    </div>
+    <div class="wx-sum-row">
+      <div class="wx-sum-cell wx-sum-rowlbl" id="wx-sum-cur-lbl">금년</div>
+      <div class="wx-sum-cell wx-sum-val" id="wx-s-temp">—</div>
+      <div class="wx-sum-cell wx-sum-val" id="wx-s-rain">—</div>
+    </div>
+    <div class="wx-sum-row">
+      <div class="wx-sum-cell wx-sum-rowlbl" id="wx-sum-prev-lbl">전년</div>
+      <div class="wx-sum-cell wx-sum-val wx-sum-prev" id="wx-s-ptemp">—</div>
+      <div class="wx-sum-cell wx-sum-val wx-sum-prev" id="wx-s-prain">—</div>
+    </div>
+    <div class="wx-sum-row wx-sum-diffrow">
+      <div class="wx-sum-cell wx-sum-rowlbl">전년比</div>
+      <div class="wx-sum-cell wx-sum-diff" id="wx-s-tdiff"></div>
+      <div class="wx-sum-cell wx-sum-diff" id="wx-s-rdiff"></div>
+    </div>
   </div>
   <div class="wx-cals">
     <div class="wx-cal">
@@ -131,8 +149,8 @@
   </div>
   <div class="wx-legend">
     <div class="wx-leg"><div class="wx-leg-dot" style="background:#F0997B"></div>기온(°C)</div>
-    <div class="wx-leg"><div class="wx-leg-dot" style="background:#85B7EB"></div>강수(mm)</div>
-    <div class="wx-leg"><div class="wx-leg-box" style="background:#E6F1FB;border:.5px solid #85B7EB"></div>오늘</div>
+    <div class="wx-leg"><div class="wx-leg-dot" style="background:#1659A8"></div>강수(mm)</div>
+    <div class="wx-leg"><div class="wx-leg-box" style="background:var(--accent-lt);border:.5px solid var(--accent)"></div>오늘</div>
     <div class="wx-leg"><div class="wx-leg-box" style="background:#FCEBEB;border:.5px solid #F7C1C1"></div>공휴일</div>
   </div>
   <div class="wx-dow-idx">
@@ -196,7 +214,7 @@
   <div class="right-tabs">
     <button class="rtab on" data-tab="tab-news" onclick="switchTab(this)">최근 기사 요약</button>
     <button class="rtab" data-tab="tab-reports" onclick="switchTab(this)">연구기관 보고서</button>
-    <button class="rtab" data-tab="tab-insight" onclick="switchTab(this)">지표 교차 인사이트</button>
+    <button class="rtab rtab-ai" data-tab="tab-insight" onclick="switchTab(this)">지표 교차 인사이트 <span class="ai-badge">AI</span></button>
   </div>
 
   <!-- 탭 2: 최근 기사 요약 -->
@@ -267,7 +285,10 @@
   <div class="tab-panel" id="tab-insight" style="display:none">
     <div class="tab-panel-inner">
       <div class="custom-box">
-        <div class="custom-title">✏️ 지표를 직접 선택해서 AI 교차분석</div>
+        <div class="custom-title">
+          <span class="ai-feature-badge">✦ AI</span>
+          지표를 선택하면 AI가 현대백화점 관점으로 교차분석합니다
+        </div>
 
         <!-- AI 프로바이더 선택 + 키 설정 -->
         <div class="insight-key-row">
@@ -283,7 +304,7 @@
           </button>
         </div>
 
-        <div class="custom-subtitle">2~5개 선택 후 분석 버튼 클릭 → AI가 현대백화점 관점으로 실시간 분석 <span id="chk-counter" style="font-weight:600;color:#185FA5;margin-left:8px">0/5 선택됨</span></div>
+        <div class="custom-subtitle">2~5개 선택 후 분석 버튼 클릭 → AI가 현대백화점 관점으로 실시간 분석 <span id="chk-counter" style="font-weight:600;color:#006241;margin-left:8px">0/5 선택됨</span></div>
         <div class="ind-checks">
           <input type="checkbox" class="ind-chk" id="ic_csi" onchange="onCheckChange(this)" value="소비자심리지수(최신값, 경기 동향)"><label class="ind-chk-label" for="ic_csi">소비자심리지수</label>
           <input type="checkbox" class="ind-chk" id="ic_cpi" onchange="onCheckChange(this)" value="소비자물가(전년비 상승률)"><label class="ind-chk-label" for="ic_cpi">소비자물가</label>

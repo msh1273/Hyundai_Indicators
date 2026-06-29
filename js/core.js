@@ -440,6 +440,10 @@ function toggleCat(btn, grpId) {
     btn.classList.add('open');
     var grp = document.getElementById(grpId);
     if(grp) grp.classList.add('open');
+
+    /* 하위 첫 번째 버튼 자동 활성화 */
+    var firstSubBtn = grp && grp.querySelector('.sub-btn');
+    if(firstSubBtn) firstSubBtn.click();
   }
 }
 

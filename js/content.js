@@ -17,7 +17,7 @@ function fnews(cat, btn) {
    · loadReports(): GitHub raw에서 fetch → 4개 기관 렌더
    · renderReportList(org, items): 뉴스 카드 삽입
    ═══════════════════════════════════════════ */
-var REPORTS_URL = 'https://raw.githubusercontent.com/lahs0406-design/hyundai-indicators-v2/main/reports.json';
+var REPORTS_URL = './reports.json';
 
 async function loadReports() {
   try {
@@ -97,7 +97,7 @@ function toggleMore(btn, listId) {
   btn.textContent = isOpen ? '▼ 더보기 (' + count + '개)' : '▲ 접기';
 }
 
-var NEWS_URL = 'https://raw.githubusercontent.com/lahs0406-design/hyundai-indicators-v2/main/news.json';
+var NEWS_URL = './news.json';
 
 /* news.json → 카테고리별 매핑 후 nwrap에 렌더링 */
 async function loadNews() {
@@ -219,7 +219,12 @@ function tourYoyPct(cur, prev) {
 
 function tourInit() {
   loadDataJson().then(function(d) {
-    if (!d || !d.tourism) return;
+    var sec = document.getElementById('tour-section');
+    if (!d || !d.tourism || !Object.keys(d.tourism).length) {
+      if (sec) sec.style.display = 'none';
+      return;
+    }
+    if (sec) sec.style.display = '';
     _tourData = d.tourism;
 
     // 슬라이더 범위 설정: data.json의 실제 ym 목록 기준
@@ -451,8 +456,8 @@ function wxBuildGrid(gridEl, region, y, m, isCur) {
     if (dow === 6) cls += ' sat';
     if (d === todayD) cls += ' today';
     var isCurrentMonth = (y === now.getFullYear() && m === now.getMonth());
-if (isCurrentMonth && d > lastData) cls += ' future';
-    if (holName && !(isCur && d > lastData)) cls += ' holiday';
+    if (isCurrentMonth && d > now.getDate()) cls += ' future';
+    if (holName && !(isCurrentMonth && d > now.getDate())) cls += ' holiday';
     cell.className = cls;
 
     var numEl = document.createElement('div');
@@ -468,7 +473,8 @@ if (isCurrentMonth && d > lastData) cls += ' future';
     }
 
     var hasData = !isCur || d <= lastData;
-    if (hasData && regionData) {
+    var isFuture = isCurrentMonth && d > now.getDate();
+    if (hasData && regionData && !isFuture) {
       var dayObj = null;
       for (var k = 0; k < regionData.days.length; k++) {
         if (regionData.days[k].d === d) { dayObj = regionData.days[k]; break; }
@@ -495,6 +501,7 @@ if (isCurrentMonth && d > lastData) cls += ' future';
     }
     gridEl.appendChild(cell);
   }
+
 }
 
 function wxBuildDowIdx(curY, curM) {
@@ -586,6 +593,12 @@ function wxRender() {
   document.getElementById('wx-cur-lbl').textContent  = wxMonthStr(wxY, wxM);
   document.getElementById('wx-prev-lbl').textContent = wxMonthStr(lyY, lyM);
 
+  /* 요약 테이블 행 레이블에 년월 표시 */
+  var curLbl  = document.getElementById('wx-sum-cur-lbl');
+  var prevLbl = document.getElementById('wx-sum-prev-lbl');
+  if (curLbl)  curLbl.textContent  = (wxM + 1) + '월 금년';
+  if (prevLbl) prevLbl.textContent = (wxM + 1) + '월 전년';
+
   var futureLimit = new Date(now.getFullYear(), now.getMonth() + 3, 1);
 var atMax = (wxY > futureLimit.getFullYear()) || 
             (wxY === futureLimit.getFullYear() && wxM >= futureLimit.getMonth());
@@ -599,26 +612,32 @@ var atMax = (wxY > futureLimit.getFullYear()) ||
   var curMon = rd ? rd[ym]   : null;
   var lyMon  = rd ? rd[lyYm] : null;
 
-  function setSum(id, val, diffId, cur, prev, unit) {
+  function setVal(id, v, unit) {
     var el = document.getElementById(id);
-    var de = document.getElementById(diffId);
-    if (!el || !de) return;
-    if (cur === null || cur === undefined) { el.textContent = '—'; de.textContent = ''; return; }
-    el.textContent = cur + unit;
-    if (prev !== null && prev !== undefined) {
-      var d = Math.round((cur - prev) * 10) / 10;
-      de.textContent = (d > 0 ? '▲ +' : d < 0 ? '▼ ' : '= ') + d + unit + ' vs 전년';
-      de.style.color = unit === 'mm' ? (d < 0 ? '#185FA5' : '#A32D2D') : (d > 0 ? '#A32D2D' : '#185FA5');
-    } else { de.textContent = ''; }
+    if (el) el.textContent = (v !== null && v !== undefined) ? v + unit : '—';
   }
-  setSum('wx-s-temp', curMon ? curMon.avg_temp : null, 'wx-s-tdiff',
-         curMon ? curMon.avg_temp : null, lyMon ? lyMon.avg_temp : null, '°C');
-  // 일평균 강수량 = 월강수량 / 집계일수
+  function setDiff(diffId, cur, prev, unit) {
+    var de = document.getElementById(diffId);
+    if (!de) return;
+    if (cur === null || prev === null || cur === undefined || prev === undefined) { de.textContent = '—'; return; }
+    var d = Math.round((cur - prev) * 10) / 10;
+    de.textContent = (d > 0 ? '▲ +' : d < 0 ? '▼ ' : '= ') + Math.abs(d) + unit;
+    de.style.color = unit === 'mm' ? (d < 0 ? '#1659A8' : '#A32D2D') : (d > 0 ? '#A32D2D' : '#1659A8');
+  }
+
+  var curTemp  = curMon ? curMon.avg_temp : null;
+  var lyTemp   = lyMon  ? lyMon.avg_temp  : null;
   var curRainAvg = (curMon && curMon.total_rain != null && curMon.days && curMon.days.length)
     ? Math.round(curMon.total_rain / curMon.days.length * 10) / 10 : null;
   var lyRainAvg  = (lyMon  && lyMon.total_rain  != null && lyMon.days  && lyMon.days.length)
     ? Math.round(lyMon.total_rain  / lyMon.days.length  * 10) / 10 : null;
-  setSum('wx-s-rain', curRainAvg, 'wx-s-rdiff', curRainAvg, lyRainAvg, 'mm');
+
+  setVal('wx-s-temp',  curTemp,    '°C');
+  setVal('wx-s-rain',  curRainAvg, 'mm');
+  setVal('wx-s-ptemp', lyTemp,     '°C');
+  setVal('wx-s-prain', lyRainAvg,  'mm');
+  setDiff('wx-s-tdiff', curTemp,    lyTemp,    '°C');
+  setDiff('wx-s-rdiff', curRainAvg, lyRainAvg, 'mm');
 
   wxBuildDowIdx(wxY, wxM);
 }
