@@ -2,7 +2,7 @@ name: 외부지표 데이터 자동 갱신
 
 on:
   schedule:
-    - cron: '0 22 * * *'   # 매일 07:00 KST (UTC 22:00)
+    - cron: '0 17 * * *'   # 매일 02:00 KST (UTC 17:00)
   workflow_dispatch: {}     # 수동 실행 버튼
 
 permissions:
@@ -35,18 +35,18 @@ jobs:
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
-        run: python scripts/fetch_news.py
+        run: python scripts/news/fetch_news.py
 
       - name: reports.json 갱신 (연구기관 보고서)
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
-        run: python scripts/fetch_reports.py
+        run: python scripts/reports/fetch_reports.py
 
       - name: 결과 커밋 & 푸시
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data.json news.json reports.json
-          git diff --staged --quiet || git commit -m "chore: 외부지표 데이터 자동 갱신"
+          git add data.json summary.json news.json reports.json
+          git diff --staged --quiet || git commit -m "chore: 외부지표 데이터 자동 갱신 $(TZ='Asia/Seoul' date +'%Y-%m-%d %H:%M KST')"
           git push

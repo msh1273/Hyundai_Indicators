@@ -154,11 +154,22 @@ function renderChart(vals, prevVals, labels, d) {
             ticks:{
               font:{size:9}, maxRotation:0,
               autoSkip: false,
-              // 일별: 월이 바뀌는 곳에만 레이블, 나머지 빈칸
-              // 월별: 그대로 표시
+              // 일별: 월이 바뀌는 첫 포인트에만 "N월"
+              // 월별: 1월 → 연도('YY년), 4·7·10월 → 월만, 나머지 숨김
               callback: isDaily
                 ? function(value, index) { return monthLabels[index] || ''; }
-                : function(value, index) { return labels[index]; }
+                : function(value, index) {
+                    var lbl = labels[index];
+                    if (!lbl) return '';
+                    // lbl 형식: "24.01" (YY.MM)
+                    var dot = lbl.indexOf('.');
+                    if (dot < 0) return lbl; // 분기 등 다른 형식은 그대로
+                    var yy = lbl.substring(0, dot);
+                    var mm = parseInt(lbl.substring(dot + 1), 10);
+                    if (mm === 1)  return "'" + yy + '년';
+                    if (mm === 4 || mm === 7 || mm === 10) return mm + '월';
+                    return '';
+                  }
             }
           },
           y:{grid:{color:'rgba(128,128,128,0.07)'}, ticks:{font:{size:9}}}
@@ -219,6 +230,8 @@ function updateKPI(d) {
    ═══════════════════════════════════════════ */
 async function loadEcosChart(key) {
   var d = CD[key]; if(!d) return;
+  var _wrap = document.querySelector('.canvas-wrap');
+  if(_wrap) _wrap.style.height = '150px';
   document.getElementById('ctitle').textContent = d.title;
   document.getElementById('cmeta').textContent  = '🔄 실시간 데이터 불러오는 중...';
   document.getElementById('scur').textContent   = '...';
@@ -242,9 +255,7 @@ async function loadEcosChart(key) {
   var avg6   = vals.slice(-6).reduce(function(a,b){return a+b;},0)/Math.min(6,vals.length);
   var diff   = latest - (vals[vals.length-2]||latest);
 
-  // 전년 대비: rows 앞부분에서 계산
-  var prevChartVals = vals.length >= 13 ? vals.slice(0, vals.length-12) : null;
-
+  // 전년 대비 KPI 계산 (차트 라인 별도 표시 안 함 — 2년 시계열에 이미 포함)
   var yoyDiff = vals.length >= 13
     ? (latest - vals[vals.length-13])
     : null;
@@ -260,96 +271,7 @@ async function loadEcosChart(key) {
   document.getElementById('snote').textContent  = d.note;
   document.getElementById('synote').textContent = d.yn;
 
-  renderChart(vals, prevChartVals, labels, d);
-}
-
-/* ═══════════════════════════════════════════
-   JS § 13-1. KOSIS 연간 데이터 fetch + 차트 로드
-   · 합계출산율(TFR) / 조혼인율 등 prdSe=Y 전용
-   · 연간 레이블: "2020", "2021" ... 형식으로 표시
-   · 차트: 막대(bar) 형태로 연도별 추이 강조
-   ═══════════════════════════════════════════ */
-
-
-async function loadKosisAnnualChart(key) {
-  var d = CD[key]; if(!d) return;
-  document.getElementById('ctitle').textContent = d.title;
-  setMetaLoading();
-  document.getElementById('scur').textContent = '...';
-  document.getElementById('savg').textContent = '...';
-  document.getElementById('syoy').textContent = '...';
-
-  var jsonData = await loadDataJson();
-  var rows = jsonData ? jsonData[key] : null;
-
-  if(!rows || rows.length === 0) {
-    /* API 실패 → 샘플 데이터 fallback */
-    setMetaSample(d);
-    updateKPI(d);
-    /* 샘플 데이터로 연간 차트 렌더 */
-    var sampleYears = [];
-    var startY = new Date().getFullYear() - (d.data.length - 1);
-    for(var i = 0; i < d.data.length; i++) sampleYears.push(String(startY + i));
-    renderAnnualChart(d.data, sampleYears, d);
-    return;
-  }
-
-  var vals   = rows.map(function(r){ return r.val; });
-  var labels = rows.map(function(r){ return r.ym; }); /* "2023" 형식 */
-  var latest = vals[vals.length - 1];
-  var prev   = vals[vals.length - 2] || latest;
-  var avg6   = vals.slice(-6).reduce(function(a,b){ return a+b; }, 0) / Math.min(6, vals.length);
-  var diff   = latest - prev;
-  var yoyDiff = vals.length >= 2 ? (latest - vals[vals.length - 2]) : null;
-
-  setMetaLive(d, 'data.json');
-  document.getElementById('ctitle').textContent = d.title;
-  document.getElementById('scur').textContent   = fmtVal(latest, d.unit);
-  document.getElementById('savg').textContent   = fmtVal(avg6,   d.unit);
-  document.getElementById('syoy').textContent   = yoyDiff !== null ? fmtVal(yoyDiff, d.unit, true) : '-';
-  var schg = document.getElementById('schg');
-  schg.textContent = fmtDiff(diff, d.unit);
-  schg.className   = 'kc ' + (diff > 0 ? 'up' : diff < 0 ? 'down' : 'neu');
-  document.getElementById('snote').textContent  = d.note;
-  document.getElementById('synote').textContent = d.yn;
-
-  renderAnnualChart(vals, labels, d);
-}
-
-/* 연간 데이터 전용 차트: 막대(bar) + 선 혼합 */
-function renderAnnualChart(vals, labels, d) {
-  if(mc){ mc.destroy(); mc = null; }
-  setTimeout(function(){
-    var ctx = document.getElementById('mc').getContext('2d');
-    mc = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: '연간',
-          data: vals,
-          backgroundColor: d.color + 'BB',
-          borderColor:     d.color,
-          borderWidth: 1.5,
-          borderRadius: 3
-        }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: {
-            grid: { color: 'rgba(128,128,128,0.07)' },
-            ticks: { font: { size: 9 }, maxRotation: 0 }
-          },
-          y: {
-            grid: { color: 'rgba(128,128,128,0.07)' },
-            ticks: { font: { size: 9 } }
-          }
-        }
-      }
-    });
-  }, 10);
+  renderChart(vals, null, labels, d);
 }
 
 /* ═══════════════════════════════════════════
@@ -359,6 +281,8 @@ function renderAnnualChart(vals, labels, d) {
    ═══════════════════════════════════════════ */
 async function loadKosisChart(key) {
   var d = CD[key]; if(!d) return;
+  var _wrap = document.querySelector('.canvas-wrap');
+  if(_wrap) _wrap.style.height = '150px';
   document.getElementById('ctitle').textContent = d.title;
   document.getElementById('cmeta').textContent  = '🔄 실시간 데이터 불러오는 중...';
   document.getElementById('scur').textContent   = '...';
@@ -465,7 +389,7 @@ async function selChartWithAPI(key, btn, grpId) {
   document.querySelectorAll('.cat-col-btn').forEach(function(b){ b.classList.remove('open'); });
   var grp = document.getElementById(grpId);
   if(grp) grp.classList.add('open');
-var grpToBtnIdx = {'grp1':0,'grp3':1,'grp4':2,'grp7':3,'grp2':4,'grp5':5,'grp6':6};
+var grpToBtnIdx = {'grp1':0,'grp3':1,'grp4':2,'grp7':3,'grp5':4};
 var idx = grpToBtnIdx[grpId];
 var catBtns = document.querySelectorAll('.cat-col-btn');
 if(idx !== undefined && catBtns[idx]) catBtns[idx].classList.add('open');
@@ -489,9 +413,8 @@ if(idx !== undefined && catBtns[idx]) catBtns[idx].classList.add('open');
 
   if(ECOS_MAP[key]) {
     await loadEcosChart(key);
-  } else if(KOSIS_ANNUAL_MAP[key]) {
-    /* 연간 전용 지표: 합계출산율, 조혼인율 */
-    await loadKosisAnnualChart(key);
+  } else if(key==='dept'||key==='mart'||key==='convenience') {
+    await loadRetailItemChart(key);
   } else if(KOSIS_MAP[key]) {
     await loadKosisChart(key);
   } else {
@@ -499,5 +422,131 @@ if(idx !== undefined && catBtns[idx]) catBtns[idx].classList.add('open');
     document.getElementById('cmeta').textContent  = d.meta+' (샘플 데이터)';
     updateKPI(d);
     renderChart(d.data||[], null, makeMonthLabels(), d);
+  }
+}
+
+/* ═══════════════════════════════════════════
+   JS § 17. 유통채널 품목별 멀티라인 차트
+   · loadRetailItemChart(key): 합계 KPI + 품목별 라인
+   · renderRetailItemsChart(): 멀티 데이터셋 Chart.js
+   ═══════════════════════════════════════════ */
+var RETAIL_PALETTE = [
+  '#185FA5','#1D9E75','#D85A30','#7B5EA7','#E6A817',
+  '#2E86AB','#A23B72','#F18F01','#4B8B3B','#C0392B'
+];
+
+function renderRetailItemsChart(itemsObj, ymList, labels, d) {
+  if(mc){ mc.destroy(); mc = null; }
+  var itemNames = Object.keys(itemsObj);
+  var datasets = itemNames.map(function(nm, idx) {
+    var valMap = {};
+    itemsObj[nm].forEach(function(r){ valMap[r.ym] = r.val; });
+    var vals = ymList.map(function(ym){
+      return valMap[ym] !== undefined ? valMap[ym] : null;
+    });
+    var color = RETAIL_PALETTE[idx % RETAIL_PALETTE.length];
+    return {
+      label: nm,
+      data: vals,
+      borderColor: color,
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      pointRadius: 1.5,
+      pointHoverRadius: 4,
+      fill: false,
+      tension: 0.35,
+      spanGaps: true
+    };
+  });
+
+  setTimeout(function(){
+    var ctx = document.getElementById('mc').getContext('2d');
+    mc = new Chart(ctx, {
+      type: 'line',
+      data: {labels: labels, datasets: datasets},
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true, position: 'bottom',
+            labels: {font:{size:8}, boxWidth:10, padding:5, usePointStyle:true}
+          },
+          tooltip: {mode:'index', intersect:false}
+        },
+        scales: {
+          x: {
+            grid: {color:'rgba(128,128,128,0.07)'},
+            ticks: {
+              font:{size:9}, maxRotation:0, autoSkip:false,
+              callback: function(value, index) {
+                var lbl = labels[index]; if(!lbl) return '';
+                var dot = lbl.indexOf('.'); if(dot<0) return lbl;
+                var yy = lbl.substring(0,dot);
+                var mm = parseInt(lbl.substring(dot+1), 10);
+                if(mm===1)  return "'"+yy+'년';
+                if(mm===4||mm===7||mm===10) return mm+'월';
+                return '';
+              }
+            }
+          },
+          y: {
+            grid: {color:'rgba(128,128,128,0.07)'},
+            ticks: {font:{size:9}},
+            title: {display:true, text:'전년동월비 (%)', font:{size:8}, color:'var(--text3)'}
+          }
+        }
+      }
+    });
+  }, 10);
+}
+
+async function loadRetailItemChart(key) {
+  var d = CD[key]; if(!d) return;
+  // legend 공간 확보
+  var _wrap = document.querySelector('.canvas-wrap');
+  if(_wrap) _wrap.style.height = '182px';
+  document.getElementById('ctitle').textContent = d.title;
+  document.getElementById('cmeta').textContent  = '🔄 실시간 데이터 불러오는 중...';
+  document.getElementById('scur').textContent   = '...';
+  document.getElementById('savg').textContent   = '...';
+  document.getElementById('syoy').textContent   = '...';
+
+  var jsonData  = await loadDataJson();
+  var totalRows = jsonData ? jsonData[key]           : null;  // 합계 시계열
+  var itemsObj  = jsonData ? jsonData[key+'_items']  : null;  // 품목별 dict
+
+  // 실제 데이터 없으면 샘플 폴백
+  if(!totalRows || totalRows.length === 0) {
+    setMetaSample(d);
+    updateKPI(d);
+    renderChart(d.data||[], null, makeMonthLabels(), d);
+    return;
+  }
+
+  // KPI는 합계(totalRows) 기준
+  var vals    = totalRows.map(function(r){return r.val;});
+  var ymList  = totalRows.map(function(r){return r.ym;});
+  var labels  = makeLabels(totalRows);
+  var latest  = vals[vals.length-1];
+  var avg6    = vals.slice(-6).reduce(function(a,b){return a+b;},0)/Math.min(6,vals.length);
+  var yoyDiff = vals.length>=13 ? (latest-vals[vals.length-13]) : null;
+  var diff    = latest - (vals[vals.length-2]||latest);
+
+  setMetaLive(d, 'data.json');
+  document.getElementById('ctitle').textContent = d.title;
+  document.getElementById('scur').textContent   = fmtVal(latest, d.unit);
+  document.getElementById('savg').textContent   = fmtVal(avg6, d.unit);
+  document.getElementById('syoy').textContent   = yoyDiff!==null ? fmtVal(yoyDiff, d.unit, true) : '-';
+  var schg = document.getElementById('schg');
+  schg.textContent = fmtDiff(diff, d.unit);
+  schg.className   = 'kc '+(diff>0?'up':diff<0?'down':'neu');
+  document.getElementById('snote').textContent  = d.note;
+  document.getElementById('synote').textContent = d.yn;
+
+  if(itemsObj && Object.keys(itemsObj).length > 0) {
+    renderRetailItemsChart(itemsObj, ymList, labels, d);
+  } else {
+    // 품목 데이터 없으면 합계 단일 라인
+    renderChart(vals, null, labels, d);
   }
 }

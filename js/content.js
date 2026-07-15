@@ -511,7 +511,6 @@ function wxBuildDowIdx(curY, curM) {
   if (!body) return;
   body.innerHTML = '';
 
-  // 요일지수는 날씨 데이터와 무관하게 달력 기준 해당 월 전체 일수로 계산
   var curLastDay = wxDaysInMonth(curY, curM);
   var lyLastDay  = wxDaysInMonth(lyY, lyM);
 
@@ -532,50 +531,42 @@ function wxBuildDowIdx(curY, curM) {
   document.getElementById('wx-di-month').textContent =
     '— ' + wxMonthStr(curY, curM) + ' vs ' + wxMonthStr(lyY, lyM);
 
-  // 일~토 전체 (0~6), 금년 기준: 금년>전년이면 왼쪽(pos), 금년<전년이면 오른쪽(neg)
-  var DOW_ORDER = [1,2,3,4,5,6,0]; // 월~토~일 순
-  DOW_ORDER.forEach(function(i) {
+  var todayDow = new Date().getDay();
+  var grid = document.createElement('div');
+  grid.className = 'wx-di-grid';
+
+  // 월~일 순 (1~6, 0)
+  [1,2,3,4,5,6,0].forEach(function(i) {
     var diff = cur.dc[i] - ly.dc[i];
-    var row = document.createElement('div'); row.className = 'wx-di-row';
-    var nm = document.createElement('div'); nm.className = 'wx-di-name';
-    nm.textContent = DOW_NAMES[i] + '요일';
-    var bwrap = document.createElement('div'); bwrap.className = 'wx-di-bar-wrap';
-    var mid = document.createElement('div'); mid.className = 'wx-di-mid'; bwrap.appendChild(mid);
-    var bar = document.createElement('div');
-    var pct = Math.min(Math.abs(diff) * 9.6, 48);
-    // 금년>전년 = 왼쪽(pos/빨강), 금년<전년 = 오른쪽(neg/파랑)
-    if (diff > 0)      { bar.className = 'wx-di-bar pos'; bar.style.width = pct + '%'; }
-    else if (diff < 0) { bar.className = 'wx-di-bar neg'; bar.style.width = pct + '%'; }
-    else               { bar.className = 'wx-di-bar zero'; }
-    bwrap.appendChild(bar);
+    var chip = document.createElement('div');
+    chip.className = 'wx-di-chip' + (i === todayDow ? ' today-dow' : '');
+    var lbl = document.createElement('div');
+    lbl.className = 'wx-di-chip-lbl';
+    lbl.textContent = DOW_NAMES[i] + '요일';
     var val = document.createElement('div');
-    val.className = 'wx-di-val ' + (diff > 0 ? 'pos' : diff < 0 ? 'neg' : 'zero');
+    val.className = 'wx-di-chip-val ' + (diff > 0 ? 'pos' : diff < 0 ? 'neg' : 'zero');
     val.textContent = (diff > 0 ? '+' : '') + diff + '일';
-    row.appendChild(nm); row.appendChild(bwrap); row.appendChild(val);
-    body.appendChild(row);
+    chip.appendChild(lbl); chip.appendChild(val);
+    grid.appendChild(chip);
   });
 
-  var sep = document.createElement('hr'); sep.className = 'wx-di-sep'; body.appendChild(sep);
-
+  // 공휴일 칩
   var holDiff = cur.hc - ly.hc;
-  var holRow = document.createElement('div'); holRow.className = 'wx-di-row';
-  var holNm = document.createElement('div'); holNm.className = 'wx-di-name';
-  holNm.innerHTML = '공휴일<span style="font-size:9px;white-space:nowrap">(평일)</span>';
-  var holBwrap = document.createElement('div'); holBwrap.className = 'wx-di-bar-wrap';
-  var holMid = document.createElement('div'); holMid.className = 'wx-di-mid'; holBwrap.appendChild(holMid);
-  var holBar = document.createElement('div');
-  var holPct = Math.min(Math.abs(holDiff) * 9.6, 48);
-  if (holDiff > 0)      { holBar.className = 'wx-di-bar pos'; holBar.style.width = holPct + '%'; }
-  else if (holDiff < 0) { holBar.className = 'wx-di-bar neg'; holBar.style.width = holPct + '%'; }
-  else                  { holBar.className = 'wx-di-bar zero'; }
-  holBwrap.appendChild(holBar);
+  var holChip = document.createElement('div');
+  holChip.className = 'wx-di-chip hol-chip';
+  var holLbl = document.createElement('div');
+  holLbl.className = 'wx-di-chip-lbl';
+  holLbl.textContent = '공휴일';
   var holVal = document.createElement('div');
-  holVal.className = 'wx-di-val ' + (holDiff > 0 ? 'pos' : holDiff < 0 ? 'neg' : 'zero');
+  holVal.className = 'wx-di-chip-val ' + (holDiff > 0 ? 'pos' : holDiff < 0 ? 'neg' : 'zero');
   holVal.textContent = (holDiff > 0 ? '+' : '') + holDiff + '일';
-  holRow.appendChild(holNm); holRow.appendChild(holBwrap); holRow.appendChild(holVal);
-  body.appendChild(holRow);
+  holChip.appendChild(holLbl); holChip.appendChild(holVal);
+  grid.appendChild(holChip);
 
-  var holDetail = document.createElement('div'); holDetail.className = 'wx-di-hol-detail';
+  body.appendChild(grid);
+
+  var holDetail = document.createElement('div');
+  holDetail.className = 'wx-di-hol-detail';
   holDetail.textContent =
     '금년: ' + (cur.hlist.length ? cur.hlist.join('·') : '없음') +
     ' / 전년: ' + (ly.hlist.length ? ly.hlist.join('·') : '없음');
@@ -592,12 +583,6 @@ function wxRender() {
     wxMonthStr(wxY, wxM) + '<span class="wx-nav-sub">/ ' + wxMonthStr(lyY, lyM) + '</span>';
   document.getElementById('wx-cur-lbl').textContent  = wxMonthStr(wxY, wxM);
   document.getElementById('wx-prev-lbl').textContent = wxMonthStr(lyY, lyM);
-
-  /* 요약 테이블 행 레이블에 년월 표시 */
-  var curLbl  = document.getElementById('wx-sum-cur-lbl');
-  var prevLbl = document.getElementById('wx-sum-prev-lbl');
-  if (curLbl)  curLbl.textContent  = (wxM + 1) + '월 금년';
-  if (prevLbl) prevLbl.textContent = (wxM + 1) + '월 전년';
 
   var futureLimit = new Date(now.getFullYear(), now.getMonth() + 3, 1);
 var atMax = (wxY > futureLimit.getFullYear()) || 

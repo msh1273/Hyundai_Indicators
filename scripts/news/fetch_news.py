@@ -119,7 +119,8 @@ def main():
     now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
     result["updated"] = now.strftime("%Y.%m.%d %H:%M")
 
-    with open("news.json", "w", encoding="utf-8") as f:
+    NEWS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "news.json")
+    with open(NEWS_PATH, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
     print(f"\nnews.json 저장 완료 ({result['updated']})")
 

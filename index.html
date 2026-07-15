@@ -63,22 +63,18 @@
   <button class="cat-col-btn" onclick="toggleCat(this,'grp3')"><span class="em">📈</span>물가·금리</button>
   <button class="cat-col-btn" onclick="toggleCat(this,'grp4')"><span class="em">🏠</span>자산시장</button>
   <button class="cat-col-btn" onclick="toggleCat(this,'grp7')"><span class="em">✈️</span>관광객</button>
-  <button class="cat-col-btn" onclick="toggleCat(this,'grp2')"><span class="em">💰</span>소득·고용</button>
   <button class="cat-col-btn" onclick="toggleCat(this,'grp5')"><span class="em">🛍️</span>유통채널</button>
-  <button class="cat-col-btn" onclick="toggleCat(this,'grp6')"><span class="em">👶</span>인구동향</button>
 </div>
   </div>
   <!-- § 3-2. 지표별 서브 버튼 패널 -->
   <div class="sub-panel open" id="grp1"><button class="sub-btn on" onclick="selChart('csi',this,'grp1')">소비자심리지수</button></div>
-  <div class="sub-panel" id="grp2"><button class="sub-btn" onclick="selChart('income',this,'grp2')">가계소득</button><button class="sub-btn" onclick="selChart('employ',this,'grp2')">고용률</button></div>
   <div class="sub-panel" id="grp3"><button class="sub-btn" onclick="selChart('cpi',this,'grp3')">소비자물가</button><button class="sub-btn" onclick="selChart('rate',this,'grp3')">기준금리</button></div>
-  <div class="sub-panel" id="grp4"><button class="sub-btn" onclick="selChart('kospi',this,'grp4')">KOSPI</button><button class="sub-btn" onclick="selChart('houseprice',this,'grp4')">주택매매가격</button><button class="sub-btn" onclick="selChart('fx',this,'grp4')">환율</button></div>
-  <div class="sub-panel" id="grp5"><button class="sub-btn" onclick="selChart('dept',this,'grp5')">백화점매출(전년비)</button><button class="sub-btn" onclick="selChart('mart',this,'grp5')">대형마트매출</button><button class="sub-btn" onclick="selChart('convenience',this,'grp5')">편의점매출</button><button class="sub-btn" onclick="selChart('online',this,'grp5')">온라인쇼핑</button><button class="sub-btn" onclick="selChart('retail',this,'grp5')">소매판매지수</button><button class="sub-btn" onclick="selChart('service',this,'grp5')">서비스업생산</button></div>
+  <div class="sub-panel" id="grp4"><button class="sub-btn" onclick="selChart('kospi',this,'grp4')">KOSPI</button><button class="sub-btn" onclick="selChart('fx',this,'grp4')">환율</button></div>
+  <div class="sub-panel" id="grp5"><button class="sub-btn" onclick="selChart('dept',this,'grp5')">백화점매출(전년비)</button><button class="sub-btn" onclick="selChart('mart',this,'grp5')">대형마트매출</button><button class="sub-btn" onclick="selChart('convenience',this,'grp5')">편의점매출</button><button class="sub-btn" onclick="selChart('retail',this,'grp5')">소매판매지수</button></div>
 <div class="sub-panel" id="grp7">
   <button class="sub-btn" onclick="selChart('tourist',this,'grp7')">방한외국인</button>
   <button class="sub-btn" onclick="selChart('outbound',this,'grp7')">내국인출국</button>
 </div>
-   <div class="sub-panel" id="grp6"><button class="sub-btn" onclick="selChart('birthrate',this,'grp6')">합계출산율(TFR)</button><button class="sub-btn" onclick="selChart('marriagerate',this,'grp6')">조혼인율</button></div>
   <!-- § 3-3. 차트 + KPI 수치 -->
   <div class="sidebar-chart">
     <div class="chart-name" id="ctitle">소비자심리지수 (CCSI)</div>
@@ -113,26 +109,16 @@
     <span class="wx-nav-label" id="wx-nav-label">—<span class="wx-nav-sub" id="wx-nav-sub"></span></span>
     <button class="wx-nav-btn" id="wx-next" onclick="wxMove(1)">&#8250;</button>
   </div>
-  <div class="wx-summary" id="wx-summary">
-    <div class="wx-sum-row wx-sum-header">
-      <div class="wx-sum-cell wx-sum-rowlbl"></div>
-      <div class="wx-sum-cell wx-sum-collbl">🌡 기온<span class="wx-sum-unit">월평균 · °C</span></div>
-      <div class="wx-sum-cell wx-sum-collbl">🌧 강수<span class="wx-sum-unit">일평균 · mm</span></div>
+  <div class="wx-cards" id="wx-summary">
+    <div class="wx-card">
+      <div class="wx-card-lbl">🌡 기온 <span class="wx-card-unit">(월평균)</span></div>
+      <div class="wx-card-val" id="wx-s-temp">—</div>
+      <div class="wx-card-sub">전년 <span id="wx-s-ptemp">—</span>&thinsp;<span id="wx-s-tdiff"></span></div>
     </div>
-    <div class="wx-sum-row">
-      <div class="wx-sum-cell wx-sum-rowlbl" id="wx-sum-cur-lbl">금년</div>
-      <div class="wx-sum-cell wx-sum-val" id="wx-s-temp">—</div>
-      <div class="wx-sum-cell wx-sum-val" id="wx-s-rain">—</div>
-    </div>
-    <div class="wx-sum-row">
-      <div class="wx-sum-cell wx-sum-rowlbl" id="wx-sum-prev-lbl">전년</div>
-      <div class="wx-sum-cell wx-sum-val wx-sum-prev" id="wx-s-ptemp">—</div>
-      <div class="wx-sum-cell wx-sum-val wx-sum-prev" id="wx-s-prain">—</div>
-    </div>
-    <div class="wx-sum-row wx-sum-diffrow">
-      <div class="wx-sum-cell wx-sum-rowlbl">전년比</div>
-      <div class="wx-sum-cell wx-sum-diff" id="wx-s-tdiff"></div>
-      <div class="wx-sum-cell wx-sum-diff" id="wx-s-rdiff"></div>
+    <div class="wx-card">
+      <div class="wx-card-lbl">🌧 강수 <span class="wx-card-unit">(월평균)</span></div>
+      <div class="wx-card-val" id="wx-s-rain">—</div>
+      <div class="wx-card-sub">전년 <span id="wx-s-prain">—</span>&thinsp;<span id="wx-s-rdiff"></span></div>
     </div>
   </div>
   <div class="wx-cals">
@@ -294,10 +280,10 @@
         <div class="insight-key-row">
           <span class="insight-key-label">AI 엔진</span>
           <div class="provider-tabs" id="provider-tabs">
-            <button class="ptab" data-provider="copilot"    onclick="switchProvider(this)">Copilot Studio</button>
-            <button class="ptab" data-provider="gemini"     onclick="switchProvider(this)">Gemini</button>
-            <button class="ptab" data-provider="anthropic"  onclick="switchProvider(this)">Claude</button>
-            <button class="ptab" data-provider="groq"       onclick="switchProvider(this)">Groq</button>
+            <button class="ptab" data-provider="copilot"    onclick="switchProvider(this)"><span class="ptab-dot" id="ptab-dot-copilot"></span>Copilot Studio</button>
+            <button class="ptab" data-provider="gemini"     onclick="switchProvider(this)"><span class="ptab-dot" id="ptab-dot-gemini"></span>Gemini</button>
+            <button class="ptab" data-provider="anthropic"  onclick="switchProvider(this)"><span class="ptab-dot" id="ptab-dot-anthropic"></span>Claude</button>
+            <button class="ptab" data-provider="groq"       onclick="switchProvider(this)"><span class="ptab-dot" id="ptab-dot-groq"></span>Groq</button>
           </div>
           <button class="ai-key-btn" id="ai-key-btn" onclick="openKeyModal()">
             <span id="ai-key-status-dot" class="ai-key-dot unset"></span><span id="ai-key-btn-text">키 미설정 — 클릭하여 등록</span>
@@ -306,16 +292,16 @@
 
         <div class="custom-subtitle">2~5개 선택 후 분석 버튼 클릭 → AI가 현대백화점 관점으로 실시간 분석 <span id="chk-counter" style="font-weight:600;color:#006241;margin-left:8px">0/5 선택됨</span></div>
         <div class="ind-checks">
-          <input type="checkbox" class="ind-chk" id="ic_csi" onchange="onCheckChange(this)" value="소비자심리지수(최신값, 경기 동향)"><label class="ind-chk-label" for="ic_csi">소비자심리지수</label>
-          <input type="checkbox" class="ind-chk" id="ic_cpi" onchange="onCheckChange(this)" value="소비자물가(전년비 상승률)"><label class="ind-chk-label" for="ic_cpi">소비자물가</label>
-          <input type="checkbox" class="ind-chk" id="ic_rate" onchange="onCheckChange(this)" value="기준금리(한국은행 통화정책)"><label class="ind-chk-label" for="ic_rate">기준금리</label>
-          <input type="checkbox" class="ind-chk" id="ic_fx" onchange="onCheckChange(this)" value="원/달러 환율(원화 강약)"><label class="ind-chk-label" for="ic_fx">환율</label>
-          <input type="checkbox" class="ind-chk" id="ic_kospi" onchange="onCheckChange(this)" value="KOSPI(주가 자산효과)"><label class="ind-chk-label" for="ic_kospi">KOSPI</label>
-          <input type="checkbox" class="ind-chk" id="ic_tourist" onchange="onCheckChange(this)" value="방한 외국인 관광객 수"><label class="ind-chk-label" for="ic_tourist">관광객 수</label>
-          <input type="checkbox" class="ind-chk" id="ic_income" onchange="onCheckChange(this)" value="가계소득(소비여력)"><label class="ind-chk-label" for="ic_income">가계소득</label>
-          <input type="checkbox" class="ind-chk" id="ic_employ" onchange="onCheckChange(this)" value="고용률(취업자 비율)"><label class="ind-chk-label" for="ic_employ">고용률</label>
-          <input type="checkbox" class="ind-chk" id="ic_houseprice" onchange="onCheckChange(this)" value="주택매매가격지수"><label class="ind-chk-label" for="ic_houseprice">주택가격</label>
-          <input type="checkbox" class="ind-chk" id="ic_retail" onchange="onCheckChange(this)" value="소매판매지수(내수 소비)"><label class="ind-chk-label" for="ic_retail">소매판매</label>
+          <input type="checkbox" class="ind-chk" id="ic_csi"         value="소비자심리지수(최신값, 경기 동향)"><label class="ind-chk-label" for="ic_csi">소비자심리지수</label>
+          <input type="checkbox" class="ind-chk" id="ic_cpi"         value="소비자물가(전년비 상승률)"><label class="ind-chk-label" for="ic_cpi">소비자물가</label>
+          <input type="checkbox" class="ind-chk" id="ic_rate"        value="기준금리(한국은행 통화정책)"><label class="ind-chk-label" for="ic_rate">기준금리</label>
+          <input type="checkbox" class="ind-chk" id="ic_fx"          value="원/달러 환율(원화 강약)"><label class="ind-chk-label" for="ic_fx">환율</label>
+          <input type="checkbox" class="ind-chk" id="ic_kospi"       value="KOSPI(주가 자산효과)"><label class="ind-chk-label" for="ic_kospi">KOSPI</label>
+          <input type="checkbox" class="ind-chk" id="ic_tourist"     value="방한 외국인 관광객 수"><label class="ind-chk-label" for="ic_tourist">관광객 수</label>
+          <input type="checkbox" class="ind-chk" id="ic_retail"      value="소매판매지수(내수 소비)"><label class="ind-chk-label" for="ic_retail">소매판매</label>
+          <input type="checkbox" class="ind-chk" id="ic_dept"        value="백화점 품목별 매출증감률(전년비)"><label class="ind-chk-label" for="ic_dept">백화점매출</label>
+          <input type="checkbox" class="ind-chk" id="ic_mart"        value="대형마트 품목별 매출증감률(전년비)"><label class="ind-chk-label" for="ic_mart">대형마트매출</label>
+          <input type="checkbox" class="ind-chk" id="ic_convenience" value="편의점 품목별 매출증감률(전년비)"><label class="ind-chk-label" for="ic_convenience">편의점매출</label>
         </div>
         <div class="prompt-input-row">
           <div class="prompt-input-label">AI에게 보낼 질문 <span style="font-size:11px;color:#888;font-weight:400">(지표 선택 시 자동 생성 · 직접 수정 가능)</span></div>
@@ -328,6 +314,13 @@
         <div class="custom-result" id="custom-result">
           <div class="cr-hd">AI 교차분석 결과 <span id="cir-pulse" style="display:none"><span class="pulse"></span></span></div>
           <div id="cir-selected" class="cir-selected-tags" style="display:none"></div>
+          <!-- 엔진별 결과 탭 (결과 받은 엔진만 활성화) -->
+          <div id="result-engine-tabs" class="res-tabs" style="display:none">
+            <button class="res-tab-btn" data-provider="copilot"    onclick="switchProvider(document.querySelector('.ptab[data-provider=copilot]'))" disabled>Copilot Studio</button>
+            <button class="res-tab-btn" data-provider="gemini"     onclick="switchProvider(document.querySelector('.ptab[data-provider=gemini]'))"  disabled>Gemini</button>
+            <button class="res-tab-btn" data-provider="anthropic"  onclick="switchProvider(document.querySelector('.ptab[data-provider=anthropic]'))" disabled>Claude</button>
+            <button class="res-tab-btn" data-provider="groq"       onclick="switchProvider(document.querySelector('.ptab[data-provider=groq]'))"    disabled>Groq</button>
+          </div>
           <div class="cr-body markdown-body" id="cir-body"></div>
         </div>
       </div>
