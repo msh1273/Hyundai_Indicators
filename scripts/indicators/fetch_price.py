@@ -18,7 +18,7 @@ load_dotenv()
 
 from utils import (
     load_existing, save_data, upsert,
-    get_fetch_start, today_str, ecos_fetch
+    get_fetch_start, today_str, ecos_fetch, ecos_fetch_all
 )
 
 ECOS_KEY = os.environ["ECOS_KEY"]
@@ -41,16 +41,19 @@ def run(data: dict) -> dict:
     else:
         print("  → 데이터 없음, 기존 유지")
 
-    # ── 기준금리
-    print("\n[물가금리] 기준금리")
-    series = data.get("rate", [])
-    rows = ecos_fetch("722Y001", "0101000", "M",
-                      get_fetch_start(series), today[:6], ECOS_KEY)
-    if rows:
-        for r in rows:
-            series = upsert(series, r["ym"], r["val"])
-        data["rate"] = sorted(series, key=lambda x: x["ym"])[-30:]
-        print(f"  → {len(data['rate'])}개월, 최신: {data['rate'][-1]}")
+    # ── 기준금리 결정일 (2008-01-01 ~ 오늘, 일별 → 변경일만 추출)
+    print("\n[물가금리] 기준금리 결정일")
+    rows_d = ecos_fetch_all("722Y001", "0101000", "D", "20240101", today, ECOS_KEY)
+    if rows_d:
+        rows_d = sorted(rows_d, key=lambda x: x["ym"])  # ym = YYYYMMDD
+        decisions = []
+        prev_val = None
+        for r in rows_d:
+            if r["val"] != prev_val:
+                decisions.append({"date": r["ym"], "val": r["val"]})
+                prev_val = r["val"]
+        data["rate_decisions"] = decisions
+        print(f"  → {len(decisions)}건: {[(d['date'], d['val']) for d in decisions]}")
     else:
         print("  → 데이터 없음, 기존 유지")
 

@@ -133,14 +133,18 @@ def _fetch_holidays(data: dict, today: str) -> dict:
         return data
 
     print("\n[공휴일] 수집 중...")
-    holidays   = data.get("holidays", {})
-    this_year  = int(today[:4])
+    holidays  = data.get("holidays", {})
+    this_year = int(today[:4])
+
     for year in [this_year - 1, this_year]:
         year_key = str(year)
         if year_key in holidays and year < this_year:
             print(f"  {year}년 캐시 사용 ({len(holidays[year_key])}건)")
             continue
-        year_hols = {}
+
+        # 기존 데이터 유지 (부분 실패 대비)
+        year_hols = dict(holidays.get(year_key, {}))
+
         for month in range(1, 13):
             params = urllib.parse.urlencode({
                 "serviceKey": HOLIDAY_KEY,
@@ -150,28 +154,39 @@ def _fetch_holidays(data: dict, today: str) -> dict:
                 "_type":      "json",
             })
             url = (
-                "http://apis.data.go.kr/B090041/openapi/service"
+                "https://apis.data.go.kr/B090041/openapi/service"
                 f"/SpcdeInfoService/getRestDeInfo?{params}"
             )
-            try:
-                with urllib.request.urlopen(url, timeout=10) as res:
-                    body  = json.loads(res.read().decode("utf-8"))
-                    items = body.get("response", {}).get("body", {}).get("items", {})
-                    if not items:
-                        continue
-                    rows = items.get("item", [])
-                    if isinstance(rows, dict):
-                        rows = [rows]
-                    for r in rows:
-                        date_str = str(r.get("locdate", ""))
-                        is_hol   = r.get("isHoliday", "N")
-                        if date_str and is_hol == "Y":
-                            year_hols[date_str] = r.get("dateName", "")
-            except Exception as e:
-                print(f"  [공휴일 오류] {year}-{month:02d}: {e}")
-            time.sleep(0.1)
+            success = False
+            for attempt in range(3):  # 최대 3회 재시도
+                try:
+                    with urllib.request.urlopen(url, timeout=20) as res:
+                        body  = json.loads(res.read().decode("utf-8"))
+                        items = body.get("response", {}).get("body", {}).get("items", {})
+                        if items:
+                            rows = items.get("item", [])
+                            if isinstance(rows, dict):
+                                rows = [rows]
+                            for r in rows:
+                                date_str = str(r.get("locdate", ""))
+                                is_hol   = r.get("isHoliday", "N")
+                                if date_str and is_hol == "Y":
+                                    year_hols[date_str] = r.get("dateName", "")
+                    success = True
+                    break
+                except Exception as e:
+                    wait = (attempt + 1) * 2
+                    if attempt < 2:
+                        print(f"  [공휴일 재시도 {attempt+1}] {year}-{month:02d}: {e} → {wait}초 대기")
+                        time.sleep(wait)
+                    else:
+                        print(f"  [공휴일 실패] {year}-{month:02d}: {e}")
+            if success:
+                time.sleep(0.15)
+
         holidays[year_key] = year_hols
         print(f"  {year}년: {len(year_hols)}건 수집")
+
     data["holidays"] = holidays
     return data
 

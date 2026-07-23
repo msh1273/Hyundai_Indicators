@@ -16,7 +16,7 @@ data.json에서 AI가 필요한 데이터만 추출해 summary.json 생성.
 실행: python scripts/gen_summary.py
 """
 
-import os, json, datetime
+import os, json, datetime, calendar
 
 DATA_PATH    = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data.json")
 SUMMARY_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "summary.json")
@@ -43,6 +43,33 @@ RETAIL_ITEM_KEYS = {
     "mart":        "mart_items",
     "convenience": "convenience_items",
 }
+
+
+def decisions_to_monthly(decisions: list, start_ym: str = "202312") -> list:
+    """rate_decisions → 월별 시계열 변환 (결정일 기준 유효값 채우기)"""
+    now = datetime.datetime.now()
+    end_ym = now.strftime("%Y%m")
+    months = []
+    y, m = int(start_ym[:4]), int(start_ym[4:])
+    ey, em = int(end_ym[:4]), int(end_ym[4:])
+    while (y, m) <= (ey, em):
+        months.append(f"{y}{m:02d}")
+        m += 1
+        if m > 12:
+            m = 1; y += 1
+
+    series = []
+    for ym in months:
+        # 해당 월 말일까지의 결정 중 가장 최근 것
+        month_end = ym + "31"
+        val = None
+        for dec in reversed(decisions):
+            if dec["date"][:6] <= ym:
+                val = dec["val"]
+                break
+        if val is not None:
+            series.append({"ym": ym, "val": val})
+    return series
 
 
 def calc_kpi(series: list) -> dict:
@@ -80,7 +107,14 @@ def run(data: dict) -> dict:
     }
 
     for key in INDICATOR_KEYS:
-        series = data.get(key, [])
+        # 기준금리는 rate_decisions → 월별 변환 후 처리
+        if key == "rate":
+            decisions = data.get("rate_decisions", [])
+            if not decisions:
+                continue
+            series = decisions_to_monthly(decisions)
+        else:
+            series = data.get(key, [])
         if not series:
             continue
 

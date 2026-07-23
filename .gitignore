@@ -2,6 +2,7 @@ assets/config.local.js
 *.local.js
 .env
 .env.*
+scripts/prompts.json
 __pycache__/
 *.pyc
 *.pyd

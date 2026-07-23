@@ -13,6 +13,7 @@
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -25,6 +26,66 @@
   <div class="logo-mark"><span>H</span></div>
   <div><div class="top-bar-org">현대백화점 상품본부 지원팀</div><div class="top-bar-title">백화점 영향 외부지표 현황 <span class="badge-s" id="live-badge">日 1회 자동 연동</span></div></div>
   <div style="margin-left:auto"></div>
+  <div class="ms-user-area">
+    <span class="ms-user-name" id="ms-user-name"></span>
+    <button class="ms-logout-btn" id="ms-logout-btn" style="display:none" onclick="onClickLogout()">로그아웃</button>
+    <button class="ms-az-btn" onclick="openAzureModal()" title="Azure AD 설정">⚙ AD</button>
+  </div>
+</div>
+
+<!-- ── Microsoft 로그인 오버레이 ── -->
+<div class="login-overlay" id="login-overlay">
+  <div class="login-box">
+    <div class="login-logo"><span>H</span></div>
+    <div class="login-title">현대백화점 상품본부<br>외부지표 대시보드</div>
+    <div class="login-desc">Microsoft 계정으로 로그인하세요</div>
+    <button class="login-btn" id="login-btn" onclick="onClickLogin()">
+      <svg width="20" height="20" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+      Microsoft 계정으로 로그인
+    </button>
+    <div class="login-note">Azure AD 미설정 시 <span onclick="document.getElementById('login-overlay').style.display='none'" style="cursor:pointer;text-decoration:underline">건너뛰기</span></div>
+  </div>
+</div>
+
+<!-- ── Azure OpenAI 설정 모달 ── -->
+<div class="key-modal-backdrop" id="azure-oai-modal-backdrop" style="display:none" onclick="closeAzureOAIModal(event)">
+  <div class="key-modal" style="min-width:340px">
+    <div class="key-modal-title">Azure OpenAI 설정</div>
+    <div class="key-modal-desc" style="margin-bottom:12px;font-size:12px;line-height:1.6">
+      Azure Portal → OpenAI 리소스 → <b>키 및 엔드포인트</b>
+    </div>
+    <label class="az-label">엔드포인트 URL</label>
+    <input class="key-modal-input" id="aoai-endpoint" type="text" placeholder="https://xxx.openai.azure.com/" autocomplete="off">
+    <label class="az-label">API 키</label>
+    <input class="key-modal-input" id="aoai-key" type="password" placeholder="API 키 붙여넣기…" autocomplete="off">
+    <label class="az-label">배포 이름 (Deployment name)</label>
+    <input class="key-modal-input" id="aoai-deployment" type="text" placeholder="gpt-4o-mini" autocomplete="off">
+    <div class="key-modal-actions">
+      <button class="key-modal-clear" onclick="clearAzureOAI()">삭제</button>
+      <button class="key-modal-save" onclick="saveAzureOAI()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Azure AD 설정 모달 ── -->
+<div class="key-modal-backdrop" id="azure-modal-backdrop" style="display:none" onclick="closeAzureModal(event)">
+  <div class="key-modal" style="min-width:340px">
+    <div class="key-modal-title">Azure AD 설정</div>
+    <div class="key-modal-desc" style="margin-bottom:12px;font-size:12px;line-height:1.6">
+      Copilot Studio 봇 앱 등록 정보를 입력하세요.<br>
+      대시보드 로그인과 봇 연동에 동일하게 사용됩니다.
+    </div>
+    <label class="az-label">봇 Client ID (애플리케이션 ID)</label>
+    <input class="key-modal-input" id="az-bot-id" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off">
+    <label class="az-label">Tenant ID (디렉터리 ID)</label>
+    <input class="key-modal-input" id="az-tenant-id" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off">
+    <label class="az-label">OAuth 연결 이름 (기본: default)</label>
+    <input class="key-modal-input" id="az-conn-name" type="text" placeholder="default" autocomplete="off">
+    <div class="key-modal-actions">
+      <button class="key-modal-clear" onclick="closeAzureModal()">취소</button>
+      <button class="key-modal-save" onclick="saveAzureSettings()">저장</button>
+    </div>
+  </div>
 </div>
 
 <!-- AI 키 입력 모달 -->
@@ -81,11 +142,33 @@
     <div class="index-note" id="index-note"></div>
     <div class="chart-src" id="cmeta">출처: 한국은행 · 월별 발표 · 기준선 100</div>
     <div class="kpi-grid">
-      <div class="kpill"><div class="kl">최신값</div><div class="kv" id="scur">100.3</div><div class="kc down" id="schg">▼ -1.2</div></div>
-      <div class="kpill"><div class="kl">6개월 평균</div><div class="kv" id="savg">101.8</div><div class="kc neu" id="snote">기준 100+</div></div>
-      <div class="kpill"><div class="kl">전년 대비</div><div class="kv" id="syoy">-3.1</div><div class="kc down" id="synote">점진 위축</div></div>
+      <div class="kpill"><div class="kl">최신값</div><div class="kv" id="scur">—</div></div>
+      <div class="kpill"><div class="kl">전월비</div><div class="kv" id="schg">—</div></div>
+      <div class="kpill"><div class="kl">전년비</div><div class="kv" id="syoy">—</div><div class="kc" id="synote"></div></div>
+      <div class="kpill"><div class="kl">6개월 평균</div><div class="kv" id="savg">—</div><div class="kc neu" id="snote"></div></div>
+    </div>
+    <!-- 유통채널 품목별 필터 (dept/mart/convenience 선택 시 표시) -->
+    <div id="item-filter-panel" style="display:none">
+      <div class="item-filter-hd">
+        <span class="item-filter-label">품목 선택</span>
+        <label class="item-chk-label"><input type="checkbox" id="item-chk-all" onchange="onRetailAllChange(this)"> 전체</label>
+      </div>
+      <div class="item-filter-checks" id="item-filter-checks"></div>
     </div>
     <div class="canvas-wrap"><canvas id="mc" role="img" aria-label="지표 추세 차트"></canvas></div>
+
+    <!-- § 3-4. AI 지표 해석 박스 -->
+    <div class="ai-interp" id="ai-interp" style="display:none">
+      <div class="ai-interp-hd">
+        <span class="ai-interp-label">AI 지표 해석</span>
+        <span class="ai-interp-provider" id="ai-interp-provider"></span>
+        <button class="ai-interp-refresh" id="ai-interp-refresh" onclick="refreshIndicatorInsight()" title="새로고침">↻</button>
+      </div>
+      <div class="ai-interp-loading" id="ai-interp-loading" style="display:none">
+        <span class="pulse"></span> 해석 생성 중…
+      </div>
+      <div class="markdown-body ai-interp-body" id="ai-interp-body"></div>
+    </div>
 
   </div>
 
@@ -199,7 +282,7 @@
   <!-- 탭 네비게이션 -->
   <div class="right-tabs">
     <button class="rtab on" data-tab="tab-news" onclick="switchTab(this)">최근 기사 요약</button>
-    <button class="rtab" data-tab="tab-reports" onclick="switchTab(this)">연구기관 보고서</button>
+    <button class="rtab" data-tab="tab-reports" onclick="switchTab(this)">연구기관 보도자료</button>
     <button class="rtab rtab-ai" data-tab="tab-insight" onclick="switchTab(this)">지표 교차 인사이트 <span class="ai-badge">AI</span></button>
   </div>
 
@@ -220,7 +303,7 @@
     </div>
   </div>
 
-  <!-- 탭 3: 연구기관 보고서 -->
+  <!-- 탭 3: 연구기관 보도자료 -->
   <div class="tab-panel" id="tab-reports" style="display:none">
     <div class="tab-panel-inner">
       <div class="tab-meta">보고서 <span id="rpt-updated"></span></div>
@@ -284,6 +367,7 @@
             <button class="ptab" data-provider="gemini"     onclick="switchProvider(this)"><span class="ptab-dot" id="ptab-dot-gemini"></span>Gemini</button>
             <button class="ptab" data-provider="anthropic"  onclick="switchProvider(this)"><span class="ptab-dot" id="ptab-dot-anthropic"></span>Claude</button>
             <button class="ptab" data-provider="groq"       onclick="switchProvider(this)"><span class="ptab-dot" id="ptab-dot-groq"></span>Groq</button>
+            <button class="ptab" data-provider="azure_oai"  onclick="switchProvider(this)"><span class="ptab-dot" id="ptab-dot-azure_oai"></span>Azure OpenAI</button>
           </div>
           <button class="ai-key-btn" id="ai-key-btn" onclick="openKeyModal()">
             <span id="ai-key-status-dot" class="ai-key-dot unset"></span><span id="ai-key-btn-text">키 미설정 — 클릭하여 등록</span>
@@ -319,7 +403,8 @@
             <button class="res-tab-btn" data-provider="copilot"    onclick="switchProvider(document.querySelector('.ptab[data-provider=copilot]'))" disabled>Copilot Studio</button>
             <button class="res-tab-btn" data-provider="gemini"     onclick="switchProvider(document.querySelector('.ptab[data-provider=gemini]'))"  disabled>Gemini</button>
             <button class="res-tab-btn" data-provider="anthropic"  onclick="switchProvider(document.querySelector('.ptab[data-provider=anthropic]'))" disabled>Claude</button>
-            <button class="res-tab-btn" data-provider="groq"       onclick="switchProvider(document.querySelector('.ptab[data-provider=groq]'))"    disabled>Groq</button>
+            <button class="res-tab-btn" data-provider="groq"       onclick="switchProvider(document.querySelector('.ptab[data-provider=groq]'))"      disabled>Groq</button>
+            <button class="res-tab-btn" data-provider="azure_oai"  onclick="switchProvider(document.querySelector('.ptab[data-provider=azure_oai]'))"  disabled>Azure OpenAI</button>
           </div>
           <div class="cr-body markdown-body" id="cir-body"></div>
         </div>
@@ -357,6 +442,12 @@ var PROVIDER_CFG = {
     storageKey: 'groq_api_key',
     placeholder: 'gsk_… API 키 붙여넣기…',
     desc: '<a href="https://console.groq.com/keys" target="_blank" style="color:var(--accent)">Groq Console</a>에서 API 키를 발급해 입력하세요. 무료, 카드 불필요. (llama-3.3-70b 사용)'
+  },
+  azure_oai: {
+    label: 'Azure OpenAI',
+    storageKey: 'azure_oai_config',
+    placeholder: '',
+    desc: 'Azure Portal → OpenAI 리소스 → <b>키 및 엔드포인트</b>에서 확인하세요.'
   }
 };
 
@@ -382,6 +473,7 @@ function switchTab(btn) {
 
 /* ── AI 키 모달 ── */
 function openKeyModal() {
+  if (currentProvider() === 'azure_oai') { openAzureOAIModal(); return; }
   var cfg    = PROVIDER_CFG[currentProvider()];
   var stored = localStorage.getItem(cfg.storageKey) || '';
   document.getElementById('key-modal-title').textContent = cfg.label + ' 키 설정';
@@ -391,6 +483,35 @@ function openKeyModal() {
   document.getElementById('key-modal-input').value = stored ? '••••••••••••••••' : '';
   document.getElementById('key-modal-backdrop').style.display = 'flex';
   if (!stored) document.getElementById('key-modal-input').focus();
+}
+function openAzureOAIModal() {
+  var cfg = JSON.parse(localStorage.getItem('azure_oai_config') || '{}');
+  document.getElementById('aoai-endpoint').value   = cfg.endpoint   || '';
+  document.getElementById('aoai-key').value        = cfg.key ? '••••••••••••••••' : '';
+  document.getElementById('aoai-deployment').value = cfg.deployment || 'gpt-4o-mini';
+  document.getElementById('azure-oai-modal-backdrop').style.display = 'flex';
+}
+function closeAzureOAIModal(e) {
+  if (!e || e.target === document.getElementById('azure-oai-modal-backdrop'))
+    document.getElementById('azure-oai-modal-backdrop').style.display = 'none';
+}
+function saveAzureOAI() {
+  var endpoint   = document.getElementById('aoai-endpoint').value.trim();
+  var key        = document.getElementById('aoai-key').value.trim();
+  var deployment = document.getElementById('aoai-deployment').value.trim() || 'gpt-4o-mini';
+  var prev = JSON.parse(localStorage.getItem('azure_oai_config') || '{}');
+  if (key === '••••••••••••••••') key = prev.key || '';
+  if (!endpoint || !key) { alert('엔드포인트와 API 키를 모두 입력해주세요.'); return; }
+  localStorage.setItem('azure_oai_config', JSON.stringify({ endpoint: endpoint, key: key, deployment: deployment }));
+  updateKeyStatus();
+  closeAzureOAIModal();
+}
+function clearAzureOAI() {
+  localStorage.removeItem('azure_oai_config');
+  document.getElementById('aoai-endpoint').value = '';
+  document.getElementById('aoai-key').value = '';
+  document.getElementById('aoai-deployment').value = '';
+  updateKeyStatus();
 }
 function closeKeyModal(e) {
   if (!e || e.target === document.getElementById('key-modal-backdrop')) {
@@ -430,6 +551,7 @@ document.addEventListener('DOMContentLoaded', updateKeyStatus);
 document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeKeyModal(); });
 </script>
 
+<script src="js/auth.js"></script>
 <script src="js/config.js"></script>
 <script src="js/core.js"></script>
 <script src="js/ai.js"></script>

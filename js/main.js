@@ -2,6 +2,9 @@
    main.js — 페이지 초기화 진입점 (모든 모듈 로드 후 실행)
    =========================================== */
 window.addEventListener('load', function() {
+  // Microsoft 인증 초기화 (Azure AD 설정 있을 때만 로그인 요구)
+  initAuth();
+
   // 기본 지표 로드: 소비심리지수 (grp1 첫 번째 버튼)
   var defaultBtn = document.querySelector('#grp1 .sub-btn');
   if(defaultBtn) selChartWithAPI('csi', defaultBtn, 'grp1');

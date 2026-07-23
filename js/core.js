@@ -208,20 +208,30 @@ function fmtIncome(val) {
 }
 
 /* ═══════════════════════════════════════════
-   JS § 10. KPI 패널 업데이트 (샘플 fallback)
-   · API 실패 시 CD 객체의 cur/avg/yoy 값 표시
+   JS § 10. KPI 패널 업데이트
    ═══════════════════════════════════════════ */
+
+/* 전년비 카드: 텍스트 + 색상 클래스 동시 적용 */
+function setYoyKpi(yoyDiff, unit, formattedText) {
+  var el = document.getElementById('syoy');
+  if(!el) return;
+  var txt = formattedText !== undefined
+    ? formattedText
+    : (yoyDiff !== null ? fmtVal(yoyDiff, unit, true) : '-');
+  el.textContent = txt;
+  var n = Number(yoyDiff);
+  el.className = 'kv ' + (n > 0 ? 'up' : n < 0 ? 'down' : 'neu');
+}
+
 function updateKPI(d) {
-  // 샘플 데이터는 CD에 저장된 cur/avg/yoy 문자열 그대로 사용
-  // (이미 포맷된 문자열이거나 계산된 값)
   document.getElementById('scur').textContent  = d.cur  || '-';
   document.getElementById('savg').textContent  = d.avg  || '-';
-  document.getElementById('syoy').textContent  = d.yoy  || '-';
   var schg = document.getElementById('schg');
   schg.textContent = d.chg || '-';
-  schg.className   = 'kc ' + (d.cc || 'neu');
+  schg.className   = 'kv ' + (d.cc || 'neu');
   document.getElementById('snote').textContent  = d.note || '';
   document.getElementById('synote').textContent = d.yn   || '';
+  setYoyKpi(d.yoy, null, d.yoy || '-');
 }
 /* ===========================================
    JS § 13. ECOS 차트 로드 (loadEcosChart)
@@ -264,10 +274,10 @@ async function loadEcosChart(key) {
   setMetaLive(d, 'data.json');
   document.getElementById('scur').textContent   = fmtVal(latest, d.unit);
   document.getElementById('savg').textContent   = fmtVal(avg6, d.unit);
-  document.getElementById('syoy').textContent   = yoyDiff !== null ? fmtVal(yoyDiff, d.unit, true) : '-';
+  setYoyKpi(yoyDiff, d.unit);
   var schg = document.getElementById('schg');
   schg.textContent = fmtDiff(diff, d.unit);
-  schg.className = 'kc ' + (diff>0?'up':diff<0?'down':'neu');
+  schg.className = 'kv ' + (diff>0?'up':diff<0?'down':'neu');
   document.getElementById('snote').textContent  = d.note;
   document.getElementById('synote').textContent = d.yn;
 
@@ -328,11 +338,11 @@ async function loadKosisChart(key) {
     setMetaLive(d, 'data.json');
     document.getElementById('scur').textContent = fmtJo(displayLatest);
     document.getElementById('savg').textContent = fmtJo(displayAvg);
-    document.getElementById('syoy').textContent = displayYoy !== null ? fmtJo(displayYoy, true) : '-';
+    setYoyKpi(displayYoy, null, displayYoy !== null ? fmtJo(displayYoy, true) : '-');
     var schg = document.getElementById('schg');
     var sign2 = displayDiff > 0 ? '▲ +' : displayDiff < 0 ? '▼ ' : '= ';
     schg.textContent = sign2 + Math.abs(displayDiff).toLocaleString('ko-KR',{minimumFractionDigits:1,maximumFractionDigits:1}) + '조';
-    schg.className = 'kc ' + (displayDiff>0?'up':displayDiff<0?'down':'neu');
+    schg.className = 'kv ' + (displayDiff>0?'up':displayDiff<0?'down':'neu');
     document.getElementById('snote').textContent  = d.note;
     document.getElementById('synote').textContent = d.yn;
     renderChart(vals, prevVals, labels, d);
@@ -343,15 +353,155 @@ async function loadKosisChart(key) {
   setMetaLive(d, 'data.json');
   document.getElementById('scur').textContent   = fmtVal(displayLatest, displayUnit);
   document.getElementById('savg').textContent   = fmtVal(displayAvg, displayUnit);
-  document.getElementById('syoy').textContent   = yoyDiff !== null ? fmtVal(yoyDiff, displayUnit, true) : '-';
+  setYoyKpi(yoyDiff, displayUnit);
   var schg = document.getElementById('schg');
   schg.textContent = fmtDiff(diff, displayUnit);
-  schg.className = 'kc ' + (diff>0?'up':diff<0?'down':'neu');
+  schg.className = 'kv ' + (diff>0?'up':diff<0?'down':'neu');
   document.getElementById('snote').textContent  = d.note;
   document.getElementById('synote').textContent = d.yn;
 
   renderChart(vals, prevVals, labels, d);
 }
+/* ═══════════════════════════════════════════
+   JS § 14-2. 기준금리 스텝 차트 (loadRateChart)
+   · X축: 월별 레이블
+   · 데이터 포인트: 한국은행 결정일에만 표시
+   · 선 형태: 계단(stepped) — 결정 후 유지
+   ═══════════════════════════════════════════ */
+/* rate_decisions → 월별 시계열 변환 (JS) */
+function decisionsToMonthly(decisions, startYm) {
+  startYm = startYm || '202401';
+  var now = new Date();
+  var endY = now.getFullYear(), endM = now.getMonth() + 1;
+  var months = [];
+  var y = parseInt(startYm.substring(0,4)), m = parseInt(startYm.substring(4,6));
+  while(y < endY || (y === endY && m <= endM)) {
+    months.push(y.toString() + (m<10?'0':'') + m.toString());
+    m++; if(m>12){m=1;y++;}
+  }
+  return months.map(function(ym) {
+    var val = null;
+    for(var i = decisions.length-1; i>=0; i--) {
+      if(decisions[i].date.substring(0,6) <= ym){ val = decisions[i].val; break; }
+    }
+    return val !== null ? {ym:ym, val:val} : null;
+  }).filter(Boolean);
+}
+
+async function loadRateChart() {
+  var d = CD['rate']; if(!d) return;
+  var _wrap = document.querySelector('.canvas-wrap');
+  if(_wrap) _wrap.style.height = '170px';
+
+  document.getElementById('ctitle').textContent = d.title;
+  document.getElementById('cmeta').textContent  = '🔄 실시간 데이터 불러오는 중...';
+  document.getElementById('scur').textContent   = '...';
+  document.getElementById('savg').textContent   = '...';
+
+  var jsonData  = await loadDataJson();
+  var decisions = jsonData ? jsonData['rate_decisions'] : null;
+
+  if(!decisions || decisions.length === 0) {
+    setMetaSample(d);
+    updateKPI(d);
+    renderChart(d.data||[], null, makeMonthLabels(), d);
+    return;
+  }
+
+  /* decisions → 월별 시계열 (2024-01 ~ 현재) */
+  var rows   = decisionsToMonthly(decisions, '202401');
+  var vals   = rows.map(function(r){return r.val;});
+  var ymList = rows.map(function(r){return r.ym;});
+  var labels = makeLabels(rows);
+
+  /* KPI */
+  var latest  = vals[vals.length-1];
+  var avg6    = vals.slice(-6).reduce(function(a,b){return a+b;},0)/Math.min(6,vals.length);
+  var yoyDiff = vals.length>=13 ? round2(latest-vals[vals.length-13]) : null;
+  /* 전월비: 마지막 실제 변경 폭 (직전 결정 대비) */
+  var lastDec = decisions[decisions.length-1];
+  var prevDec = decisions.length>=2 ? decisions[decisions.length-2] : null;
+  var diff    = prevDec ? round2(lastDec.val - prevDec.val) : 0;
+
+  function round2(v){ return Math.round(v*100)/100; }
+
+  setMetaLive(d, 'data.json');
+  document.getElementById('ctitle').textContent = d.title;
+  document.getElementById('scur').textContent   = fmtVal(latest, d.unit);
+  document.getElementById('savg').textContent   = fmtVal(avg6, d.unit);
+  setYoyKpi(yoyDiff, d.unit);
+  var schg = document.getElementById('schg');
+  schg.textContent = diff !== 0 ? fmtDiff(diff, d.unit) : '동결';
+  schg.className   = 'kv ' + (diff>0?'up':diff<0?'down':'neu');
+  document.getElementById('snote').textContent  = d.note;
+  document.getElementById('synote').textContent = d.yn;
+
+  /* 결정월 마킹 */
+  var decisionMonths = {};
+  decisions.forEach(function(dec){ decisionMonths[dec.date.substring(0,6)] = true; });
+  var pointRadii = ymList.map(function(ym){ return decisionMonths[ym] ? 5 : 0; });
+  var pointColors= ymList.map(function(ym){ return decisionMonths[ym] ? d.color : 'transparent'; });
+
+  if(mc){ mc.destroy(); mc = null; }
+  setTimeout(function(){
+    var ctx = document.getElementById('mc').getContext('2d');
+    mc = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: '기준금리',
+          data: vals,
+          borderColor: d.color,
+          backgroundColor: d.color + '18',
+          borderWidth: 2,
+          stepped: 'after',
+          pointRadius: pointRadii,
+          pointBackgroundColor: pointColors,
+          pointHoverRadius: 6,
+          fill: true,
+          tension: 0
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            mode: 'index', intersect: false,
+            callbacks: {
+              label: function(ctx) { return '기준금리: ' + ctx.parsed.y.toFixed(2) + '%'; },
+              afterLabel: function(ctx) { return decisionMonths[ymList[ctx.dataIndex]] ? '📌 한국은행 결정월' : ''; }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(128,128,128,0.07)' },
+            ticks: {
+              font:{size:9}, maxRotation:0, autoSkip:false,
+              callback: function(value, index) {
+                var lbl = labels[index]; if(!lbl) return '';
+                var dot = lbl.indexOf('.');
+                if(dot<0) return lbl;
+                var mm = parseInt(lbl.substring(dot+1), 10);
+                /* 2008년부터 장기 시계열 — 1월마다 연도만 표시 */
+                if(mm === 1) return lbl.substring(0, dot) + '년';
+                return '';
+              }
+            }
+          },
+          y: {
+            grid: { color: 'rgba(128,128,128,0.07)' },
+            ticks: { font:{size:9}, callback: function(v){ return v.toFixed(2)+'%'; } },
+            title: { display:true, text:'기준금리 (%)', font:{size:8}, color:'var(--text3)' }
+          }
+        }
+      }
+    });
+  }, 10);
+}
+
 /* ===========================================
    JS § 15. 카테고리 토글 (toggleCat)
    · 카테고리 버튼 클릭 → 해당 서브패널 열림
@@ -411,7 +561,12 @@ if(idx !== undefined && catBtns[idx]) catBtns[idx].classList.add('open');
 
   var d = CD[key]; if(!d) return;
 
-  if(ECOS_MAP[key]) {
+  /* 유통채널 외 지표 선택 시 품목 필터 패널 숨김 */
+  if(key!=='dept' && key!=='mart' && key!=='convenience') hideItemFilterPanel();
+
+  if(key === 'rate') {
+    await loadRateChart();
+  } else if(ECOS_MAP[key]) {
     await loadEcosChart(key);
   } else if(key==='dept'||key==='mart'||key==='convenience') {
     await loadRetailItemChart(key);
@@ -423,34 +578,48 @@ if(idx !== undefined && catBtns[idx]) catBtns[idx].classList.add('open');
     updateKPI(d);
     renderChart(d.data||[], null, makeMonthLabels(), d);
   }
+
+  /* AI 지표 해석 (AI 키 설정 시 자동 실행) */
+  if (typeof runIndicatorInsight === 'function') {
+    runIndicatorInsight(key);
+  }
 }
 
 /* ═══════════════════════════════════════════
    JS § 17. 유통채널 품목별 멀티라인 차트
-   · loadRetailItemChart(key): 합계 KPI + 품목별 라인
-   · renderRetailItemsChart(): 멀티 데이터셋 Chart.js
+   · loadRetailItemChart(key): 합계 KPI + 품목 체크박스
+   · renderCheckedRetailItems(): 체크된 품목만 차트 렌더
    ═══════════════════════════════════════════ */
 var RETAIL_PALETTE = [
   '#185FA5','#1D9E75','#D85A30','#7B5EA7','#E6A817',
   '#2E86AB','#A23B72','#F18F01','#4B8B3B','#C0392B'
 ];
 
+/* 현재 로드된 품목 데이터 (체크박스 변경 시 재렌더용) */
+var _retailItemsObj  = null;
+var _retailYmList    = [];
+var _retailLabels    = [];
+var _retailChartDef  = null;
+
 function renderRetailItemsChart(itemsObj, ymList, labels, d) {
   if(mc){ mc.destroy(); mc = null; }
   var itemNames = Object.keys(itemsObj);
-  var datasets = itemNames.map(function(nm, idx) {
+  var allNames  = Object.keys(_retailItemsObj || itemsObj);
+
+  var datasets = itemNames.map(function(nm) {
+    var paletteIdx = allNames.indexOf(nm);
     var valMap = {};
     itemsObj[nm].forEach(function(r){ valMap[r.ym] = r.val; });
     var vals = ymList.map(function(ym){
       return valMap[ym] !== undefined ? valMap[ym] : null;
     });
-    var color = RETAIL_PALETTE[idx % RETAIL_PALETTE.length];
+    var color = RETAIL_PALETTE[paletteIdx % RETAIL_PALETTE.length];
     return {
       label: nm,
       data: vals,
       borderColor: color,
       backgroundColor: 'transparent',
-      borderWidth: 1.5,
+      borderWidth: nm === '총계' ? 2 : 1.5,
       pointRadius: 1.5,
       pointHoverRadius: 4,
       fill: false,
@@ -458,6 +627,10 @@ function renderRetailItemsChart(itemsObj, ymList, labels, d) {
       spanGaps: true
     };
   });
+
+  var _wrap = document.querySelector('.canvas-wrap');
+  var hasLegend = itemNames.length > 1;
+  if(_wrap) _wrap.style.height = hasLegend ? '182px' : '150px';
 
   setTimeout(function(){
     var ctx = document.getElementById('mc').getContext('2d');
@@ -468,7 +641,7 @@ function renderRetailItemsChart(itemsObj, ymList, labels, d) {
         responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: {
-            display: true, position: 'bottom',
+            display: hasLegend, position: 'bottom',
             labels: {font:{size:8}, boxWidth:10, padding:5, usePointStyle:true}
           },
           tooltip: {mode:'index', intersect:false}
@@ -500,11 +673,69 @@ function renderRetailItemsChart(itemsObj, ymList, labels, d) {
   }, 10);
 }
 
+/* 체크된 품목만 걸러서 차트 재렌더 */
+function renderCheckedRetailItems() {
+  if(!_retailItemsObj) return;
+  var checked = Array.from(
+    document.querySelectorAll('#item-filter-checks input:checked')
+  ).map(function(el){ return el.value; });
+  if(checked.length === 0) return;
+  var filtered = {};
+  checked.forEach(function(nm){ if(_retailItemsObj[nm]) filtered[nm] = _retailItemsObj[nm]; });
+  renderRetailItemsChart(filtered, _retailYmList, _retailLabels, _retailChartDef);
+}
+
+/* 개별 체크박스 변경 */
+function onRetailItemChange() {
+  /* 전체 체크박스 동기화 */
+  var all  = document.querySelectorAll('#item-filter-checks input');
+  var chkd = document.querySelectorAll('#item-filter-checks input:checked');
+  var allChk = document.getElementById('item-chk-all');
+  if(allChk) allChk.checked = (all.length === chkd.length);
+  renderCheckedRetailItems();
+}
+
+/* 전체 선택/해제 */
+function onRetailAllChange(master) {
+  document.querySelectorAll('#item-filter-checks input').forEach(function(el){
+    el.checked = master.checked;
+  });
+  renderCheckedRetailItems();
+}
+
+/* 품목 체크박스 패널 구성 */
+function buildItemFilterPanel(itemsObj) {
+  var panel  = document.getElementById('item-filter-panel');
+  var checks = document.getElementById('item-filter-checks');
+  var allChk = document.getElementById('item-chk-all');
+  if(!panel || !checks) return;
+  checks.innerHTML = '';
+  var names = Object.keys(itemsObj);
+  names.forEach(function(nm) {
+    var lbl = document.createElement('label');
+    lbl.className = 'item-chk-label';
+    var inp = document.createElement('input');
+    inp.type  = 'checkbox';
+    inp.value = nm;
+    inp.checked = (nm === '총계');
+    inp.onchange = onRetailItemChange;
+    lbl.appendChild(inp);
+    lbl.appendChild(document.createTextNode(nm));
+    checks.appendChild(lbl);
+  });
+  if(allChk) allChk.checked = false;
+  panel.style.display = 'block';
+}
+
+/* 품목 필터 패널 숨김 */
+function hideItemFilterPanel() {
+  var panel = document.getElementById('item-filter-panel');
+  if(panel) panel.style.display = 'none';
+  _retailItemsObj = null;
+}
+
 async function loadRetailItemChart(key) {
   var d = CD[key]; if(!d) return;
-  // legend 공간 확보
-  var _wrap = document.querySelector('.canvas-wrap');
-  if(_wrap) _wrap.style.height = '182px';
   document.getElementById('ctitle').textContent = d.title;
   document.getElementById('cmeta').textContent  = '🔄 실시간 데이터 불러오는 중...';
   document.getElementById('scur').textContent   = '...';
@@ -512,18 +743,17 @@ async function loadRetailItemChart(key) {
   document.getElementById('syoy').textContent   = '...';
 
   var jsonData  = await loadDataJson();
-  var totalRows = jsonData ? jsonData[key]           : null;  // 합계 시계열
-  var itemsObj  = jsonData ? jsonData[key+'_items']  : null;  // 품목별 dict
+  var totalRows = jsonData ? jsonData[key]           : null;
+  var itemsObj  = jsonData ? jsonData[key+'_items']  : null;
 
-  // 실제 데이터 없으면 샘플 폴백
   if(!totalRows || totalRows.length === 0) {
     setMetaSample(d);
     updateKPI(d);
+    hideItemFilterPanel();
     renderChart(d.data||[], null, makeMonthLabels(), d);
     return;
   }
 
-  // KPI는 합계(totalRows) 기준
   var vals    = totalRows.map(function(r){return r.val;});
   var ymList  = totalRows.map(function(r){return r.ym;});
   var labels  = makeLabels(totalRows);
@@ -536,17 +766,23 @@ async function loadRetailItemChart(key) {
   document.getElementById('ctitle').textContent = d.title;
   document.getElementById('scur').textContent   = fmtVal(latest, d.unit);
   document.getElementById('savg').textContent   = fmtVal(avg6, d.unit);
-  document.getElementById('syoy').textContent   = yoyDiff!==null ? fmtVal(yoyDiff, d.unit, true) : '-';
+  setYoyKpi(yoyDiff, d.unit);
   var schg = document.getElementById('schg');
   schg.textContent = fmtDiff(diff, d.unit);
-  schg.className   = 'kc '+(diff>0?'up':diff<0?'down':'neu');
+  schg.className   = 'kv '+(diff>0?'up':diff<0?'down':'neu');
   document.getElementById('snote').textContent  = d.note;
   document.getElementById('synote').textContent = d.yn;
 
   if(itemsObj && Object.keys(itemsObj).length > 0) {
-    renderRetailItemsChart(itemsObj, ymList, labels, d);
+    _retailItemsObj = itemsObj;
+    _retailYmList   = ymList;
+    _retailLabels   = labels;
+    _retailChartDef = d;
+    buildItemFilterPanel(itemsObj);
+    /* 기본: 총계만 체크된 상태로 렌더 */
+    renderCheckedRetailItems();
   } else {
-    // 품목 데이터 없으면 합계 단일 라인
+    hideItemFilterPanel();
     renderChart(vals, null, labels, d);
   }
 }

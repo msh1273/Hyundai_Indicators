@@ -88,6 +88,25 @@ async function askCopilotAgent(message, opts) {
   var streamUrl = conv.streamUrl;   // Direct Line WebSocket URL
   var actUrl    = 'https://directline.botframework.com/v3/directline/conversations/' + convId + '/activities';
 
+  // Azure AD 인증 봇이면 사용자 토큰 교환 (signin/tokenExchange)
+  if (typeof acquireTokenForBot === 'function') {
+    var botToken = await acquireTokenForBot().catch(function() { return null; });
+    if (botToken) {
+      var connName = localStorage.getItem('copilot_conn_name') || 'default';
+      await fetch(actUrl, {
+        method: 'POST',
+        headers: _dlHeaders(convToken),
+        body: JSON.stringify({
+          type: 'invoke',
+          name: 'signin/tokenExchange',
+          value: { id: 'te-' + Date.now(), connectionName: connName, token: botToken },
+          from: { id: 'dashboard-user' }
+        }),
+        signal: signal
+      }).catch(function(e) { console.warn('[Copilot] 토큰 교환 실패:', e.message); });
+    }
+  }
+
   // WebSocket 가능하면 즉시 응답, 아니면 폴링 폴백
   if (streamUrl) {
     return await _askCopilotViaWS(streamUrl, actUrl, convToken, message, timeoutMs, signal, onProgress);
@@ -373,7 +392,65 @@ async function askGroq(message, opts) {
 }
 
 /* ===========================================
-   ai.js § 5. 프로바이더 디스패처
+   ai.js § 5. Azure OpenAI
+   =========================================== */
+async function askAzureOpenAI(message, opts) {
+  opts = opts || {};
+  var onProgress = opts.onProgress || null;
+  var signal     = opts.signal     || null;
+
+  var cfg = _getAzureOAICfg();
+  if (!cfg) throw new Error('Azure OpenAI 설정이 없습니다. ⚙ 버튼에서 엔드포인트/키/배포명을 입력하세요.');
+
+  if (onProgress) onProgress(3, '📨 Azure OpenAI에 요청 전송 중…');
+
+  var url = cfg.endpoint.replace(/\/$/, '') +
+    '/openai/deployments/' + cfg.deployment +
+    '/chat/completions?api-version=2024-08-01-preview';
+
+  var progressTimer = setTimeout(function() {
+    if (onProgress) onProgress(4, '⏳ Azure OpenAI 응답 대기 중…');
+  }, 500);
+
+  try {
+    var res = await fetch(url, {
+      method: 'POST',
+      headers: { 'api-key': cfg.key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [
+          { role: 'system', content: AI_SYSTEM_PROMPT },
+          { role: 'user',   content: message }
+        ],
+        max_tokens: 2048
+      }),
+      signal: signal
+    });
+    clearTimeout(progressTimer);
+    if (!res.ok) {
+      var err = await res.json().catch(function(){ return {}; });
+      throw new Error('Azure OpenAI 오류 (' + res.status + '): ' + ((err.error && err.error.message) || '알 수 없는 오류'));
+    }
+    var data = await res.json();
+    var text = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    if (!text) throw new Error('Azure OpenAI에서 응답을 받지 못했습니다.');
+    return text;
+  } catch(e) {
+    clearTimeout(progressTimer);
+    throw e;
+  }
+}
+
+function _getAzureOAICfg() {
+  var raw = localStorage.getItem('azure_oai_config');
+  if (!raw) return null;
+  try {
+    var c = JSON.parse(raw);
+    return (c.endpoint && c.key && c.deployment) ? c : null;
+  } catch(e) { return null; }
+}
+
+/* ===========================================
+   ai.js § 6. 프로바이더 디스패처
    =========================================== */
 async function askAI(message, opts) {
   var provider = localStorage.getItem('ai_provider') || 'copilot';
@@ -385,6 +462,7 @@ async function askAIByProvider(provider, message, opts) {
     case 'gemini':    return askGemini(message, opts);
     case 'anthropic': return askAnthropic(message, opts);
     case 'groq':      return askGroq(message, opts);
+    case 'azure_oai': return askAzureOpenAI(message, opts);
     default:          return askCopilotAgent(message, opts);
   }
 }
@@ -721,7 +799,110 @@ function typewriterRender(rawText, container) {
 }
 
 /* ===========================================
-   ai.js § 8. 체크박스 카운터 + 프롬프트 자동 업데이트
+   ai.js § 8. 지표별 AI 해석 (배치 전용)
+   insights.json (GitHub Actions 새벽 배치 생성) 만 사용.
+   라이브 API 호출 없음.
+   =========================================== */
+
+/* 메모리 캐시: { "csi": { html, updatedAt } } */
+var _indicatorCache = {};
+
+/* insights.json 세션 캐시 */
+var _insightsJson = null;
+var _insightsJsonLoaded = false;
+
+async function _loadInsightsJson(force) {
+  if (!force && _insightsJsonLoaded) return _insightsJson;
+  _insightsJsonLoaded = true;
+  try {
+    /* 브라우저 캐시 무력화: 날짜(YYYYMMDD) 쿼리 추가 */
+    var now = new Date();
+    var bust = now.getFullYear() +
+               String(now.getMonth() + 1).padStart(2, '0') +
+               String(now.getDate()).padStart(2, '0');
+    var res = await fetch('insights.json?_=' + bust);
+    if (!res.ok) { _insightsJson = null; return null; }
+    _insightsJson = await res.json();
+  } catch(e) {
+    _insightsJson = null;
+  }
+  return _insightsJson;
+}
+
+/* 해석 박스 UI 상태 전환 */
+function _setInterpUI(state, html) {
+  var box     = document.getElementById('ai-interp');
+  var loading = document.getElementById('ai-interp-loading');
+  var body    = document.getElementById('ai-interp-body');
+  var refresh = document.getElementById('ai-interp-refresh');
+
+  if (!box) return;
+  if (state === 'hidden') { box.style.display = 'none'; return; }
+
+  box.style.display = 'block';
+  if (state === 'loading') {
+    if (loading) loading.style.display = 'flex';
+    if (body)    body.innerHTML = '';
+    if (refresh) refresh.disabled = true;
+  } else {
+    if (loading) loading.style.display = 'none';
+    if (body)    body.innerHTML = html || '';
+    if (refresh) refresh.disabled = false;
+  }
+}
+
+/* 지표 클릭 시 호출 — insights.json 만 조회, 라이브 API 없음 */
+async function runIndicatorInsight(key) {
+  var providerEl  = document.getElementById('ai-interp-provider');
+  var BATCH_LABEL = 'Azure AI 사전 분석';
+
+  /* 메모리 캐시 히트 */
+  if (_indicatorCache[key]) {
+    if (providerEl) providerEl.textContent = BATCH_LABEL;
+    _setInterpUI('done', _indicatorCache[key].html);
+    return;
+  }
+
+  _setInterpUI('loading');
+
+  try {
+    var insights = await _loadInsightsJson();
+
+    if (!insights || !insights[key]) {
+      /* 배치 데이터 없음 — 박스는 표시하되 안내 메시지 */
+      if (providerEl) providerEl.textContent = '';
+      _setInterpUI('done',
+        '<span style="color:var(--text3);font-size:12px">' +
+        '배치 분석 데이터가 없습니다. GitHub Actions 배치 실행 후 다시 확인해주세요.' +
+        '</span>');
+      return;
+    }
+
+    var text = insights[key];
+    var html = (typeof marked !== 'undefined') ? marked.parse(text) : text.replace(/\n/g, '<br>');
+    _indicatorCache[key] = { html: html };
+    if (providerEl) {
+      providerEl.textContent = BATCH_LABEL +
+        (insights.updated_at ? ' · ' + insights.updated_at : '');
+    }
+    _setInterpUI('done', html);
+
+  } catch(e) {
+    _setInterpUI('error',
+      '<span style="color:var(--text3);font-size:12px">⚠ ' + e.message + '</span>');
+  }
+}
+
+/* ↻ 새로고침 — insights.json 재로드 (라이브 API 아님) */
+function refreshIndicatorInsight() {
+  if (typeof curKey === 'undefined') return;
+  delete _indicatorCache[curKey];
+  _insightsJsonLoaded = false;
+  runIndicatorInsight(curKey);
+}
+
+/* ===========================================
+   ai.js § 9. 체크박스 카운터 + 프롬프트 자동 업데이트
    =========================================== */
 document.addEventListener('DOMContentLoaded', function() {
   document.addEventListener('change', function(e) {

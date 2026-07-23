@@ -61,10 +61,23 @@ def get_fetch_start(series: list, min_months: int = 24) -> str:
 
 
 # ── ECOS API 호출 ────────────────────────────────────
+def _ecos_parse_rows(rows: list) -> list:
+    result = []
+    for r in rows:
+        ym  = r.get("TIME", "")
+        val = r.get("DATA_VALUE", "")
+        if ym and val and val.strip():
+            try:
+                result.append({"ym": ym, "val": float(val.replace(",", ""))})
+            except ValueError:
+                pass
+    return result
+
+
 def ecos_fetch(stat_code: str, item_code: str, cycle: str,
                start_date: str, end_date: str, key: str) -> list:
     """
-    한국은행 ECOS StatisticSearch API
+    한국은행 ECOS StatisticSearch API (최대 500건)
     cycle: 'M'(월) | 'D'(일) | 'Q'(분기)
     반환: [{"ym": "202604", "val": 99.2}, ...]
     """
@@ -76,19 +89,42 @@ def ecos_fetch(stat_code: str, item_code: str, cycle: str,
         with urllib.request.urlopen(url, timeout=15) as res:
             data = json.loads(res.read().decode("utf-8"))
             rows = data.get("StatisticSearch", {}).get("row", [])
-            result = []
-            for r in rows:
-                ym  = r.get("TIME", "")
-                val = r.get("DATA_VALUE", "")
-                if ym and val and val.strip():
-                    try:
-                        result.append({"ym": ym, "val": float(val.replace(",", ""))})
-                    except ValueError:
-                        pass
-            return result
+            return _ecos_parse_rows(rows)
     except Exception as e:
         print(f"  [ECOS 오류] {stat_code}/{item_code}: {e}")
         return []
+
+
+def ecos_fetch_all(stat_code: str, item_code: str, cycle: str,
+                   start_date: str, end_date: str, key: str,
+                   page_size: int = 1000) -> list:
+    """
+    ECOS API 전체 페이지 자동 수집 (500건 제한 우회)
+    일별 장기 시계열 등 건수가 많은 경우 사용
+    """
+    result = []
+    start_idx = 1
+    while True:
+        end_idx = start_idx + page_size - 1
+        url = (
+            f"https://ecos.bok.or.kr/api/StatisticSearch/{key}/json/kr"
+            f"/{start_idx}/{end_idx}/{stat_code}/{cycle}/{start_date}/{end_date}/{item_code}"
+        )
+        try:
+            with urllib.request.urlopen(url, timeout=15) as res:
+                data = json.loads(res.read().decode("utf-8"))
+                rows = data.get("StatisticSearch", {}).get("row", [])
+                if not rows:
+                    break
+                parsed = _ecos_parse_rows(rows)
+                result.extend(parsed)
+                if len(rows) < page_size:
+                    break           # 마지막 페이지
+                start_idx += page_size
+        except Exception as e:
+            print(f"  [ECOS 오류] {stat_code}/{item_code} page {start_idx}: {e}")
+            break
+    return result
 
 
 # ── KOSIS API 호출 ───────────────────────────────────

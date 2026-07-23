@@ -43,10 +43,20 @@ jobs:
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
         run: python scripts/reports/fetch_reports.py
 
+      - name: insights.json 갱신 (Azure OpenAI 지표 해석)
+        env:
+          AZURE_OAI_ENDPOINT: ${{ secrets.AZURE_OAI_ENDPOINT }}
+          AZURE_OAI_KEY: ${{ secrets.AZURE_OAI_KEY }}
+          AZURE_OAI_DEPLOYMENT: ${{ secrets.AZURE_OAI_DEPLOYMENT }}
+          AZURE_OAI_PROMPTS_JSON: ${{ secrets.AZURE_OAI_PROMPTS_JSON }}
+        run: |
+          echo "$AZURE_OAI_PROMPTS_JSON" > scripts/prompts.json
+          python scripts/gen_insights.py
+
       - name: 결과 커밋 & 푸시
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data.json summary.json news.json reports.json
+          git add data.json summary.json news.json reports.json insights.json
           git diff --staged --quiet || git commit -m "chore: 외부지표 데이터 자동 갱신 $(TZ='Asia/Seoul' date +'%Y-%m-%d %H:%M KST')"
           git push
